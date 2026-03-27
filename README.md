@@ -6,9 +6,9 @@
 
 **Agent-based market adoption simulator** -- Simulate how your service idea would spread in the market.
 
-Place autonomous agents in a virtual representation of the Japanese market and run agent-based simulations powered by Bass diffusion theory. Visualize adoption curves, revenue projections, and improvement opportunities.
+**[Try it live](https://valuesimulator.pmdao.org/)** | [日本語](README.ja.md)
 
-[日本語版はこちら](#日本語)
+Place autonomous agents in a virtual representation of the Japanese market and run agent-based simulations powered by Bass diffusion theory. Visualize adoption curves, revenue projections, and improvement opportunities.
 
 ## How It Works
 
@@ -223,28 +223,3 @@ Bug reports and feature requests: [Issues](https://github.com/PM-DAO/value-simul
 [AGPL-3.0](LICENSE)
 
 This software is licensed under AGPL-3.0. If you provide this software as a SaaS (network service), you must make the source code available to users accessing it over the network. See [LICENSE](LICENSE) for details.
-
----
-
-## 日本語
-
-### 概要
-
-Value Simulatorは、新規サービスのアイデアを入力するだけで、エージェントベースシミュレーションにより市場での採用曲線（S字カーブ）を可視化するWebアプリケーションです。
-
-### 主な機能
-
-- **エージェントベース市場シミュレーション**: 日本市場の人口統計（e-Stat 2020国勢調査ベース）に基づくエージェント生成
-- **Bass拡散モデル + AIDMA購買ファネル**: イノベーション係数(p)・模倣係数(q)に基づく拡散と5段階購買ファネルの統合
-- **JTBD + ODI機会スコア**: 25カテゴリのプリセットJob定義とODI指標による機会スコア計算
-- **Claude API自動推論**: サービス説明文からJTBD・ターゲット・カテゴリ・価格・競合を自動推論
-- **What-If分析**: パラメータ変更の影響を即座にプレビュー
-
-### ダッシュボードの見方
-
-- **サマリーカード**: 推定TAM、総採用者数、最大日次採用数、採用率、市場機会スコア
-- **採用推移チャート**: 青い実線（累積S字カーブ）と緑の点線（日次ベルカーブ）
-- **ファネル分布**: AIDMA各段階（未認知→認知→関心→検討→採用）のエージェント分布
-- **タイムライン**: スライダーでシミュレーション日を移動、再生ボタンでアニメーション
-
-詳細な使い方は上記の英語セクションを参照してください。
