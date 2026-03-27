@@ -4,156 +4,247 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 
-**Agent-based market adoption simulator** -- サービスアイデアの市場浸透をシミュレーション
+**Agent-based market adoption simulator** -- Simulate how your service idea would spread in the market.
 
-日本市場の仮想空間にエージェントを配置し、Bass拡散理論に基づくエージェントベースシミュレーションを実行。サービスアイデアの採用曲線・売上予測・改善ポイントを可視化します。
+Place autonomous agents in a virtual representation of the Japanese market and run agent-based simulations powered by Bass diffusion theory. Visualize adoption curves, revenue projections, and improvement opportunities.
 
-### サービス説明を入力するだけ
-![入力画面](docs/screenshots/01_input.png)
+[日本語版はこちら](#日本語)
 
-### AIがJTBD・ターゲット・価格を自動推論 → シミュレーション結果をダッシュボード表示
-![AI推論結果とダッシュボード](docs/screenshots/02_ai_result.png)
+## How It Works
 
-## 主な機能
+### Step 1: Describe your service idea
 
-- **エージェントベース市場シミュレーション** -- 日本市場の人口統計（e-Stat 2020国勢調査ベース）に基づくエージェント生成。Watts-Strogatz小世界ネットワークで接続し、Rogersの普及カテゴリ（イノベーター〜ラガード）別に行動を個別化
-- **Bass拡散モデル + AIDMA購買ファネル** -- イノベーション係数(p)・模倣係数(q)に基づく拡散モデルと、UNAWARE → AWARE → INTEREST → CONSIDERATION → ADOPTED の5段階ファネルモデルを統合
-- **JTBD (Jobs-to-be-Done) + ODI機会スコア** -- 25カテゴリのプリセットJob定義とODI指標による機会スコア計算
-- **Claude API によるJTBD自動推論** -- サービス説明文を入力するだけで、AIがJTBD・ターゲット・カテゴリ・価格・競合状況を自動推論（BYO-Key モデル）
-- **シナリオ比較** -- 最大3シナリオの同時実行・比較。価格変更やマーケティング施策の効果をシミュレーション
-- **What-If分析** -- パラメータ変更の影響を即座にプレビュー
+![Input form](docs/screenshots/01_input.png)
 
-## クイックスタート
+Enter a description of your service idea in the text area. Click "AI Analysis" and Claude API will automatically infer simulation parameters (JTBD, target users, category, pricing, competition).
 
-### Docker Compose（推奨）
+### Step 2: Review AI inference + simulation results
+
+![AI inference and dashboard](docs/screenshots/detail_fullpage.png)
+
+The AI-inferred JTBD (jobs), target demographics, category, suggested price, and competition level are shown in the left panel. Parameters can be manually adjusted. Simulation results are displayed in real-time on the dashboard.
+
+---
+
+## Dashboard Details
+
+### Summary Cards
+
+![Summary cards](docs/screenshots/detail_01_summary.png)
+
+| Metric | Description |
+|--------|-------------|
+| **Estimated TAM** | Total Addressable Market size in Japan, estimated by AI based on service description |
+| **Total Adopters** | Cumulative number of agents who adopted the service during the simulation period |
+| **Peak Daily Adoption** | Highest number of new adoptions in a single day. Indicates the peak momentum |
+| **Adoption Rate** | Percentage of TAM that adopted the service. Measures market penetration |
+| **Market Opportunity Score** | ODI (Outcome-Driven Innovation) score (0-10). Higher = more unmet needs in the market = higher chance of success |
+
+### AI Inference Results
+
+![AI inference](docs/screenshots/detail_02_ai.png)
+
+What Claude API infers from your description:
+
+- **Jobs (JTBD)**: What users are trying to accomplish -- Functional, Emotional, and Social jobs
+- **Target**: Age groups (20s, 30s...), occupations (office worker, student...), household types (single, couple...)
+- **Category**: Best match from 25 categories (education, healthcare, SaaS, etc.)
+- **Suggested Price**: Recommended monthly price based on market benchmarks and target willingness to pay
+- **Competition**: None / Weak / Strong -- assessment of competitive landscape
+- **Reasoning**: Explanation of the AI's inference process, including TAM estimation rationale
+
+### Adoption Chart (Cumulative / Daily)
+
+![Adoption chart](docs/screenshots/detail_03_adoption.png)
+
+- **Blue solid line (Cumulative)**: S-curve (sigmoid). Shows the progression from innovators through early adopters to majority
+- **Green dashed line (Daily)**: Bell curve. New daily adoptions. The classic Bass diffusion pattern: rise, peak, then decline
+- **Red line (Current position)**: Position of the timeline slider
+
+**Timeline controls**: Drag the slider to any simulation day. Press play for animated playback. Adjust speed (0.5x / 1x / 2x / 4x).
+
+### Funnel Distribution (AIDMA Model)
+
+![Funnel distribution](docs/screenshots/detail_04_funnel.png)
+
+Horizontal bar chart showing agent counts at each stage of the AIDMA purchase funnel:
+
+| Stage | Description |
+|-------|-------------|
+| **Unaware** | Agents who don't know the service exists |
+| **Aware** | Agents who know about the service but aren't interested |
+| **Interest** | Agents actively gathering information |
+| **Consideration** | Agents specifically considering purchase |
+| **Adopted** | Agents who have purchased/adopted the service |
+
+Transition probabilities between stages are determined by: Bass diffusion (innovation coefficient p + imitation coefficient q), JTBD fit score, price acceptance, and social network influence from neighboring agents.
+
+---
+
+## Key Features
+
+- **Agent-based market simulation** -- Generate agents based on Japan demographics (e-Stat 2020 census). Connect via Watts-Strogatz small-world network. Individualize behavior by Rogers adoption categories (Innovators → Laggards)
+- **Bass diffusion + AIDMA funnel** -- Combine innovation/imitation coefficients with a 5-stage purchase funnel model
+- **JTBD + ODI opportunity score** -- 25 category presets with ODI scoring (`importance + max(importance - satisfaction, 0)`)
+- **Claude API auto-inference** -- Just describe your service; AI infers JTBD, target, category, pricing, and competition
+- **What-If analysis** -- Instantly preview the impact of parameter changes
+
+## Quick Start
+
+### Docker Compose (recommended)
 
 ```bash
 git clone https://github.com/PM-DAO/value-simulator.git
 cd value-simulator
 docker compose up
-# ブラウザで http://localhost:3000 を開く
+# Open http://localhost:3000
 ```
 
-### ローカル開発
+### Local Development
 
-**前提条件**: Python 3.11+, Node.js 20+, [uv](https://docs.astral.sh/uv/)
+**Prerequisites**: Python 3.11+, Node.js 20+, [uv](https://docs.astral.sh/uv/)
 
 ```bash
-# バックエンド
+# Backend
 cd backend
 uv sync
 PYTHONPATH=src uv run uvicorn simulator.api:app --reload  # http://localhost:8000
 
-# フロントエンド（別ターミナル）
+# Frontend (separate terminal)
 cd frontend
 npm install
-npm run dev  # http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev  # http://localhost:3000
 ```
 
-## アーキテクチャ
+## Architecture
 
 ```
 Frontend (Next.js 16)          Backend (FastAPI)
 ┌──────────────────┐          ┌──────────────────────────────┐
-│  入力フォーム     │  REST   │  api.py     ← エンドポイント  │
-│  結果ダッシュボード│ ──────→ │  engine.py  ← シミュレーション │
-│  シナリオ比較     │  JSON   │  agent.py   ← BDIエージェント │
-│  (Recharts)      │         │  population.py ← 人口生成     │
-└──────────────────┘          │  network.py ← ソーシャルグラフ │
-                              │  diffusion.py ← Bass拡散     │
-                              │  funnel.py  ← AIDMAファネル   │
-                              │  jtbd.py    ← JTBD/ODI計算   │
-                              │  market.py  ← 市場エンジン    │
+│  Input Form      │  REST   │  api.py     ← Endpoints       │
+│  Dashboard       │ ──────→ │  engine.py  ← Simulation      │
+│  Scenario Compare│  JSON   │  agent.py   ← BDI Agents      │
+│  (Recharts)      │         │  population.py ← Demographics │
+└──────────────────┘          │  network.py ← Social Graph    │
+                              │  diffusion.py ← Bass Model    │
+                              │  funnel.py  ← AIDMA Funnel    │
+                              │  jtbd.py    ← JTBD/ODI + LLM  │
+                              │  market.py  ← Market Engine    │
                               └──────────────────────────────┘
 ```
 
-### バックエンドモジュール
+### Backend Modules
 
-| モジュール | 説明 |
-|-----------|------|
-| `agent.py` | エージェントモデル。BDI状態、Rogersカテゴリ、ファネルステージを管理 |
-| `population.py` | 日本市場人口統計に基づくエージェント生成（年齢・性別・所得・地域） |
-| `network.py` | Watts-Strogatz小世界ネットワークによるソーシャルグラフ構築 |
-| `diffusion.py` | Bass拡散モデルの実装（閉形式解 + エージェントベース拡散） |
-| `funnel.py` | AIDMA購買ファネル（認知→興味→検討→採用の段階的遷移と減衰） |
-| `jtbd.py` | JTBD/ODI機会スコア計算 + Claude APIによるLLM推論 |
-| `market.py` | 価格モデル適用、競合影響の計算 |
-| `engine.py` | シミュレーション実行エンジン（全モジュールを統合しステップ実行） |
-| `api.py` | FastAPIエンドポイント定義 |
+| Module | Description |
+|--------|-------------|
+| `agent.py` | BDI (Beliefs-Desires-Intentions) agent model with demographics, Rogers category, funnel stage |
+| `population.py` | Stratified sampling based on Japan census data (age, gender, income, region) |
+| `network.py` | Watts-Strogatz small-world network (k=6, p=0.1) for social graph construction |
+| `diffusion.py` | Bass diffusion: innovation coefficient (p) for spontaneous adoption, imitation coefficient (q) for word-of-mouth |
+| `funnel.py` | AIDMA purchase funnel with stage transitions and decay (drop-off) at each stage |
+| `jtbd.py` | JTBD/ODI opportunity scoring + Claude API LLM inference for auto-parameter detection |
+| `market.py` | Price model application (free/freemium/subscription/usage/one-time), competition effects |
+| `engine.py` | Simulation orchestrator. Runs all modules step-by-step (daily) with marketing event injection |
+| `api.py` | FastAPI endpoints for simulation, auto-inference, and what-if analysis |
 
 ## API
 
-| エンドポイント | 説明 |
-|--------------|------|
-| `POST /api/simulate` | 手動パラメータ指定によるシミュレーション実行 |
-| `POST /api/simulate/auto` | AI自動推論モード（Claude APIでパラメータを推論） |
-| `POST /api/simulate/compare` | シナリオ比較（最大3シナリオ同時実行） |
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/simulate` | Run simulation with manual parameters |
+| `POST /api/simulate/auto` | AI auto-inference mode (Claude API infers parameters) |
+| `POST /api/simulate/compare` | Scenario comparison (up to 3 simultaneous scenarios) |
 
-APIドキュメント（Swagger UI）: http://localhost:8000/docs
+API docs (Swagger UI): http://localhost:8000/docs
 
-## Claude API設定
+## Claude API Setup
 
-AI自動推論機能（サービス説明文からJTBD・ターゲット・価格等を自動推論）を利用するには、環境変数に [Anthropic APIキー](https://console.anthropic.com/) を設定してください。
+To use AI auto-inference (automatic JTBD/target/pricing detection from service description), set your [Anthropic API key](https://console.anthropic.com/):
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-APIキーなしでも、手動でパラメータを設定してシミュレーションを実行できます。
+The simulator works without an API key -- you can manually set parameters and run simulations.
 
-## テスト
+## Tests
 
 ```bash
-# バックエンド単体テスト
+# Backend unit tests
 cd backend && uv run pytest
 
-# カバレッジ付き
+# With coverage
 cd backend && uv run pytest --cov
 
-# E2Eテスト（バックエンド・フロントエンドを自動起動）
+# E2E tests (auto-starts backend + frontend)
 cd frontend && npx playwright test
 ```
 
-## 技術スタック
+## Tech Stack
 
-| レイヤー | 技術 |
-|---------|------|
+| Layer | Technology |
+|-------|-----------|
 | Backend | Python 3.11+, FastAPI, NetworkX, NumPy, SciPy, Pydantic |
 | Frontend | Next.js 16 (App Router), React 19, Tailwind CSS v4, Recharts |
 | LLM | Anthropic Claude API |
 | Test | pytest, Playwright |
-| インフラ | Docker Compose |
+| Infra | Docker Compose |
 
-## 開発モデル
+## Development Model
 
-本プロジェクトはプライベートリポジトリで日常開発を行い、安定したリリース版をこのパブリックリポジトリに同期するワークフローを採用しています。
+Development happens in a private repository. Stable releases are synced to this public repository.
 
 ```
-Private repo (日常開発)          Public repo (本リポジトリ)
-  ├── 日々の開発・実験             ├── リリース版のみ
-  ├── WIP・試行錯誤                ├── 整理されたコミット履歴
-  └── テスト・検証                 └── タグ付きバージョン
+Private repo (daily dev)          Public repo (this repo)
+  ├── Daily development             ├── Release versions only
+  ├── WIP / experiments              ├── Clean commit history
+  └── Testing                       └── Tagged versions
          │
-         └── 安定したらsquash push ──→
+         └── When stable ──squash push──→
 ```
 
-- **セルフホスト**: このリポジトリのコードをcloneしてそのまま利用できます
-- **コード監査**: すべてのソースコードを確認できます
-- **コントリビューション**: PRはこのリポジトリに対して作成してください
+- **Self-host**: Clone this repo and run it as-is
+- **Code audit**: All source code is available for review
+- **Contribute**: Submit PRs to this repository
 
 ## Contributing
 
-Pull Requestsを歓迎します。
+Pull Requests are welcome.
 
-1. このリポジトリをFork
-2. Feature branchを作成 (`git checkout -b feature/amazing-feature`)
-3. 変更をコミット (`git commit -m 'Add amazing feature'`)
-4. Pushしてプルリクエストを作成
+1. Fork this repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push and create a Pull Request
 
-バグ報告や機能要望は [Issues](https://github.com/PM-DAO/value-simulator/issues) へ。
+Bug reports and feature requests: [Issues](https://github.com/PM-DAO/value-simulator/issues)
 
-## ライセンス
+## License
 
 [AGPL-3.0](LICENSE)
 
-このソフトウェアはAGPL-3.0ライセンスの下で公開されています。SaaSとして提供する場合、ネットワーク経由でアクセスするユーザーに対してもソースコードの公開義務が発生します。詳細は [LICENSE](LICENSE) を参照してください。
+This software is licensed under AGPL-3.0. If you provide this software as a SaaS (network service), you must make the source code available to users accessing it over the network. See [LICENSE](LICENSE) for details.
+
+---
+
+## 日本語
+
+### 概要
+
+Value Simulatorは、新規サービスのアイデアを入力するだけで、エージェントベースシミュレーションにより市場での採用曲線（S字カーブ）を可視化するWebアプリケーションです。
+
+### 主な機能
+
+- **エージェントベース市場シミュレーション**: 日本市場の人口統計（e-Stat 2020国勢調査ベース）に基づくエージェント生成
+- **Bass拡散モデル + AIDMA購買ファネル**: イノベーション係数(p)・模倣係数(q)に基づく拡散と5段階購買ファネルの統合
+- **JTBD + ODI機会スコア**: 25カテゴリのプリセットJob定義とODI指標による機会スコア計算
+- **Claude API自動推論**: サービス説明文からJTBD・ターゲット・カテゴリ・価格・競合を自動推論
+- **What-If分析**: パラメータ変更の影響を即座にプレビュー
+
+### ダッシュボードの見方
+
+- **サマリーカード**: 推定TAM、総採用者数、最大日次採用数、採用率、市場機会スコア
+- **採用推移チャート**: 青い実線（累積S字カーブ）と緑の点線（日次ベルカーブ）
+- **ファネル分布**: AIDMA各段階（未認知→認知→関心→検討→採用）のエージェント分布
+- **タイムライン**: スライダーでシミュレーション日を移動、再生ボタンでアニメーション
+
+詳細な使い方は上記の英語セクションを参照してください。
