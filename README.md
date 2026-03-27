@@ -8,6 +8,12 @@
 
 日本市場の仮想空間にエージェントを配置し、Bass拡散理論に基づくエージェントベースシミュレーションを実行。サービスアイデアの採用曲線・売上予測・改善ポイントを可視化します。
 
+### サービス説明を入力するだけ
+![入力画面](docs/screenshots/01_input.png)
+
+### AIがJTBD・ターゲット・価格を自動推論 → シミュレーション結果をダッシュボード表示
+![AI推論結果とダッシュボード](docs/screenshots/02_ai_result.png)
+
 ## 主な機能
 
 - **エージェントベース市場シミュレーション** -- 日本市場の人口統計（e-Stat 2020国勢調査ベース）に基づくエージェント生成。Watts-Strogatz小世界ネットワークで接続し、Rogersの普及カテゴリ（イノベーター〜ラガード）別に行動を個別化
@@ -114,9 +120,26 @@ cd frontend && npx playwright test
 |---------|------|
 | Backend | Python 3.11+, FastAPI, NetworkX, NumPy, SciPy, Pydantic |
 | Frontend | Next.js 16 (App Router), React 19, Tailwind CSS v4, Recharts |
-| LLM | Anthropic Claude API (BYO-Key) |
+| LLM | Anthropic Claude API |
 | Test | pytest, Playwright |
 | インフラ | Docker Compose |
+
+## 開発モデル
+
+本プロジェクトはプライベートリポジトリで日常開発を行い、安定したリリース版をこのパブリックリポジトリに同期するワークフローを採用しています。
+
+```
+Private repo (日常開発)          Public repo (本リポジトリ)
+  ├── 日々の開発・実験             ├── リリース版のみ
+  ├── WIP・試行錯誤                ├── 整理されたコミット履歴
+  └── テスト・検証                 └── タグ付きバージョン
+         │
+         └── 安定したらsquash push ──→
+```
+
+- **セルフホスト**: このリポジトリのコードをcloneしてそのまま利用できます
+- **コード監査**: すべてのソースコードを確認できます
+- **コントリビューション**: PRはこのリポジトリに対して作成してください
 
 ## Contributing
 
