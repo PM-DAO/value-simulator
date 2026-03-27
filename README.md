@@ -85,21 +85,15 @@ Frontend (Next.js 16)          Backend (FastAPI)
 
 APIドキュメント（Swagger UI）: http://localhost:8000/docs
 
-## BYO-Key モデル
+## Claude API設定
 
-このアプリケーションは **BYO-Key (Bring Your Own Key)** モデルを採用しています。
+AI自動推論機能（サービス説明文からJTBD・ターゲット・価格等を自動推論）を利用するには、環境変数に [Anthropic APIキー](https://console.anthropic.com/) を設定してください。
 
-AI推論機能（サービス説明文からの自動パラメータ推論）を利用するには、ユーザー自身の [Anthropic APIキー](https://console.anthropic.com/) が必要です。
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
 
-### セキュリティ
-
-- APIキーはブラウザの `sessionStorage` に保存（タブ/ブラウザを閉じると自動消去）
-- バックエンドはAPIキーを保存しない（リクエスト処理中のみ使用、ログからも除外）
-- HTTPS環境での利用を推奨
-
-### APIキーなしでの利用
-
-AI自動推論機能は使えませんが、手動でパラメータを設定してシミュレーションを実行できます。
+APIキーなしでも、手動でパラメータを設定してシミュレーションを実行できます。
 
 ## テスト
 

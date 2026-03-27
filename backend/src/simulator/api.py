@@ -23,13 +23,6 @@ from simulator.whatif import (
     interpret_events,
 )
 
-import logging
-
-# Suppress API key from appearing in logs
-logging.getLogger("uvicorn.access").addFilter(
-    type("ApiKeyFilter", (), {"filter": staticmethod(lambda record: "api_key" not in getattr(record, "msg", ""))})()
-)
-
 app = FastAPI(title="Value Simulator API")
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -87,7 +80,6 @@ class AutoSimulateRequest(BaseModel):
     description: str = Field(min_length=1, max_length=5000)
     period: Period = "3years"
     market_size: Literal["small", "medium", "large"] = "medium"
-    api_key: str | None = Field(default=None, max_length=200)
 
 # --- Response Models ---
 
@@ -342,7 +334,7 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
 @app.post("/api/simulate/auto", response_model=AutoSimulateResponse)
 async def simulate_auto(req: AutoSimulateRequest) -> AutoSimulateResponse:
     """AI-powered auto simulation: just provide a description."""
-    inferred = await infer_jtbd_with_llm(req.description, api_key=req.api_key)
+    inferred = await infer_jtbd_with_llm(req.description)
 
     if inferred:
         # Normalize target to list

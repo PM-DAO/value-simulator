@@ -1677,27 +1677,7 @@ function SimulationForm({
 }) {
   // AI inference state
   const [description, setDescription] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-
-  // Restore API key from sessionStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = sessionStorage.getItem("vs_api_key");
-      if (saved) setApiKey(saved);
-    }
-  }, []);
-
-  // Save API key to sessionStorage when changed
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (apiKey.trim()) {
-        sessionStorage.setItem("vs_api_key", apiKey.trim());
-      } else {
-        sessionStorage.removeItem("vs_api_key");
-      }
-    }
-  }, [apiKey]);
   const [inferredParams, setInferredParams] = useState<AutoResponse["inferred_params"] | null>(null);
 
   // Simulation parameters (prefilled by AI, overridable by user)
@@ -1779,7 +1759,6 @@ function SimulationForm({
           description,
           period,
           market_size: marketSize,
-          ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
         }),
       });
       if (!res.ok) {
@@ -1918,22 +1897,6 @@ function SimulationForm({
 
   return (
     <div className="space-y-4">
-      {/* API Key Input */}
-      <InputField label="Anthropic APIキー（任意）" htmlFor="api-key-input">
-        <input
-          id="api-key-input"
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-ant-..."
-          disabled={isLoading}
-          className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
-        />
-        <p className="mt-1 text-xs text-zinc-400">
-          未入力の場合はデフォルト設定でシミュレーションを実行します
-        </p>
-      </InputField>
-
       {/* Step 1: AI Analysis */}
       <InputField label="サービスのアイデアを説明してください" htmlFor="service-description">
         <textarea

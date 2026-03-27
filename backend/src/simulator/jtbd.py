@@ -342,14 +342,16 @@ def compute_agent_jtbd_fit(
 import json
 import os
 
-async def infer_jtbd_with_llm(description: str, api_key: str | None = None) -> dict | None:
+async def infer_jtbd_with_llm(description: str) -> dict | None:
     """Use Claude API to infer JTBD from service description.
 
     Returns dict with jobs, target, category, suggested_price, competition,
     critical_lifestyle_tags, reasoning.
     Falls back to None if API is unavailable.
+
+    Requires ANTHROPIC_API_KEY environment variable.
     """
-    api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         return None
 
