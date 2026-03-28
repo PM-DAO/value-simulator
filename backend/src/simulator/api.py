@@ -843,7 +843,7 @@ async def _generate_report_stream(req: ReportRequest):
         prompt = _build_report_prompt(req)
 
         async with client.messages.stream(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5-20241022",
             max_tokens=8192,
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
@@ -1091,7 +1091,7 @@ async def _chat_stream(req: ChatRequest):
         messages.append({"role": "user", "content": req.message})
 
         async with client.messages.stream(
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5-20241022",
             max_tokens=300,
             system=system_prompt,
             messages=messages,
