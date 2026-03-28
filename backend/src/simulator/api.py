@@ -54,7 +54,7 @@ Period = Literal["90days", "1year", "3years"]
 
 class SimulateRequest(BaseModel):
     service_name: str = Field(min_length=1, max_length=100)
-    price: int = Field(ge=0, le=100_000, description="税込月額（円）")
+    price: int = Field(ge=0, le=1_000_000, description="税込月額（円）")
     market_size: Literal["small", "medium", "large"] = "medium"
     description: str | None = Field(default=None, max_length=5000)
     target: list[Literal[
