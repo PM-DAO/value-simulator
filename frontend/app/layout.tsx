@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { I18nProvider } from "./i18n-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,7 +42,9 @@ export default function RootLayout({
         <Script strategy="beforeInteractive" id="theme-init">{themeScript}</Script>
       </head>
       <body className="min-h-full lg:h-full lg:max-h-full lg:overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950">
-        {children}
+        <I18nProvider>
+          {children}
+        </I18nProvider>
       </body>
     </html>
   );

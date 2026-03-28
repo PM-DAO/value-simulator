@@ -18,6 +18,9 @@ import {
   Cell,
 } from "recharts";
 import { ReportPanel, captureAllCharts, type ChartCaptures } from "./report/ReportPanel";
+import { ChatFab, ChatPanel } from "./chat/ChatPanel";
+import { useI18n } from "./i18n-context";
+import type { Locale } from "./i18n";
 import type {
   MarketSize, Target, Category, PriceModel, Competition, Period,
   SimulateRequest, AgentStateEntry, AgentForces, AgentSnapshot,
@@ -31,38 +34,16 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
-const FOOTER_CAVEATS = [
-  {
-    icon: "📢",
-    title: "マーケティング・認知経路",
-    body: "プロダクトが市場に存在し最低限の認知経路がある状態を前提としています。実際の市場では、マーケティング施策なしにユーザーが製品を発見することは極めて稀です。結果の絶対値よりも、拡散カーブの形状やパラメータ間の相対比較としてご活用ください。",
-  },
-  {
-    icon: "🧮",
-    title: "Bass拡散モデルの特性",
-    body: "採用の拡散はBassモデル（p: イノベーション係数、q: 模倣係数）に基づいています。pが0より大きい限り、時間経過とともに一定の採用が発生します。これはモデルの構造的な性質であり、どんなプロダクトでも時間をかければ採用が進むように見えます。",
-  },
-  {
-    icon: "🎯",
-    title: "JTBDフィットスコア",
-    body: "JTBDフィットスコアは、ターゲット層のデモグラフィクスとサービスカテゴリから算出されます。実際のプロダクト機能の充実度・品質・UXなどは反映されていません。同じカテゴリであれば、具体的なサービス内容に関わらず同様のフィットスコアになります。",
-  },
-  {
-    icon: "👥",
-    title: "エージェントの行動",
-    body: "各エージェントはRogersの普及理論（イノベーター〜ラガード）に基づく行動特性を持ちます。ソーシャルネットワーク上の口コミ伝播はモデル化されていますが、SNSでのバイラル拡散やメディア露出による急激な認知拡大などは簡略化されています。",
-  },
-  {
-    icon: "💰",
-    title: "価格・競合の影響",
-    body: "価格は主にファネル最終段階（検討→採用）のゲートとして機能します。「無料なら気軽に試す」といった初期段階への影響は限定的です。競合の影響は市場サイズの縮小と模倣係数の低下として簡易的にモデル化されています。",
-  },
-  {
-    icon: "📊",
-    title: "結果の活用方法",
-    body: "このシミュレータは、市場採用の定量予測ツールではなく、定性的な意思決定支援ツールです。「パラメータを変えたときのカーブ変化」「ターゲット層による採用パターンの違い」など、相対的な比較や感度分析に最も適しています。",
-  },
-];
+function getFooterCaveats(t: (key: string) => string) {
+  return [
+    { icon: "📢", title: t("caveat.marketing.title"), body: t("caveat.marketing.body") },
+    { icon: "🧮", title: t("caveat.bass.title"), body: t("caveat.bass.body") },
+    { icon: "🎯", title: t("caveat.jtbd.title"), body: t("caveat.jtbd.body") },
+    { icon: "👥", title: t("caveat.agent.title"), body: t("caveat.agent.body") },
+    { icon: "💰", title: t("caveat.price.title"), body: t("caveat.price.body") },
+    { icon: "📊", title: t("caveat.usage.title"), body: t("caveat.usage.body") },
+  ];
+}
 
 // ---------- Theme ----------
 
@@ -128,15 +109,16 @@ function ThemeToggle({ mode, onChange }: { mode: ThemeMode; onChange: (m: ThemeM
     </svg>
   );
 
-  const label = mode === "light" ? "ライト" : mode === "dark" ? "ダーク" : "システム";
+  const { t } = useI18n();
+  const label = mode === "light" ? t("theme.light") : mode === "dark" ? t("theme.dark") : t("theme.system");
 
   return (
     <button
       type="button"
       onClick={cycle}
       className="fixed bottom-4 left-4 z-50 flex items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-700 shadow-md hover:bg-zinc-50 transition-colors dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 safe-bottom"
-      aria-label={`テーマ切替: ${label}`}
-      title={`テーマ: ${label}`}
+      aria-label={`${t("theme.toggle")}: ${label}`}
+      title={`${t("theme.label")}: ${label}`}
     >
       {icon}
       <span>{label}</span>
@@ -190,87 +172,152 @@ const ROGERS_COLORS = {
   laggard: "#6366f1",
 } as const;
 
+function getRogersLabels(t: (key: string) => string): Record<string, string> {
+  return {
+    innovator: t("rogers.innovator"),
+    early_adopter: t("rogers.early_adopter"),
+    early_majority: t("rogers.early_majority"),
+    late_majority: t("rogers.late_majority"),
+    laggard: t("rogers.laggard"),
+  };
+}
+
+// Static fallback for contexts where t() is not available
 const ROGERS_LABELS: Record<string, string> = {
-  innovator: "イノベーター",
-  early_adopter: "アーリーアダプター",
-  early_majority: "アーリーマジョリティ",
-  late_majority: "レイトマジョリティ",
-  laggard: "ラガード",
+  innovator: "\u30A4\u30CE\u30D9\u30FC\u30BF\u30FC",
+  early_adopter: "\u30A2\u30FC\u30EA\u30FC\u30A2\u30C0\u30D7\u30BF\u30FC",
+  early_majority: "\u30A2\u30FC\u30EA\u30FC\u30DE\u30B8\u30E7\u30EA\u30C6\u30A3",
+  late_majority: "\u30EC\u30A4\u30C8\u30DE\u30B8\u30E7\u30EA\u30C6\u30A3",
+  laggard: "\u30E9\u30AC\u30FC\u30C9",
 };
 
 const ROGERS_KEYS = Object.keys(ROGERS_LABELS) as Array<keyof typeof ROGERS_LABELS>;
 
-const TARGET_GROUPS: { group: string; options: { value: Target; label: string }[] }[] = [
-  {
-    group: "年代",
-    options: [
-      { value: "teens", label: "10代" },
-      { value: "twenties", label: "20代" },
-      { value: "thirties", label: "30代" },
-      { value: "forties", label: "40代" },
-      { value: "fifties", label: "50代" },
-      { value: "sixties_plus", label: "60代以上" },
-    ],
-  },
-  {
-    group: "職業・立場",
-    options: [
-      { value: "student", label: "学生" },
-      { value: "new_graduate", label: "新卒・第二新卒" },
-      { value: "working_professional", label: "会社員" },
-      { value: "freelancer", label: "フリーランス" },
-      { value: "homemaker", label: "主婦・主夫" },
-      { value: "retired", label: "リタイア層" },
-    ],
-  },
-  {
-    group: "世帯構成",
-    options: [
-      { value: "single", label: "単身" },
-      { value: "couple", label: "夫婦・カップル" },
-      { value: "parent_young_child", label: "子育て（未就学児）" },
-      { value: "parent_school_child", label: "子育て（学童）" },
-    ],
-  },
-  {
-    group: "法人",
-    options: [
-      { value: "startup", label: "スタートアップ" },
-      { value: "smb", label: "中小企業" },
-      { value: "enterprise", label: "大企業" },
-    ],
-  },
-];
+function getTargetGroups(t: (key: string) => string): { group: string; options: { value: Target; label: string }[] }[] {
+  return [
+    {
+      group: t("target.group.age"),
+      options: [
+        { value: "teens", label: t("target.teens") },
+        { value: "twenties", label: t("target.twenties") },
+        { value: "thirties", label: t("target.thirties") },
+        { value: "forties", label: t("target.forties") },
+        { value: "fifties", label: t("target.fifties") },
+        { value: "sixties_plus", label: t("target.sixties_plus") },
+      ],
+    },
+    {
+      group: t("target.group.occupation"),
+      options: [
+        { value: "student", label: t("target.student") },
+        { value: "new_graduate", label: t("target.new_graduate") },
+        { value: "working_professional", label: t("target.working_professional") },
+        { value: "freelancer", label: t("target.freelancer") },
+        { value: "homemaker", label: t("target.homemaker") },
+        { value: "retired", label: t("target.retired") },
+      ],
+    },
+    {
+      group: t("target.group.household"),
+      options: [
+        { value: "single", label: t("target.single") },
+        { value: "couple", label: t("target.couple") },
+        { value: "parent_young_child", label: t("target.parent_young_child") },
+        { value: "parent_school_child", label: t("target.parent_school_child") },
+      ],
+    },
+    {
+      group: t("target.group.corporate"),
+      options: [
+        { value: "startup", label: t("target.startup") },
+        { value: "smb", label: t("target.smb") },
+        { value: "enterprise", label: t("target.enterprise") },
+      ],
+    },
+  ];
+}
 
+function getTargetLabelMap(t: (key: string) => string): Record<string, string> {
+  const groups = getTargetGroups(t);
+  const all = groups.flatMap((g) => g.options);
+  return Object.fromEntries(all.map((o) => [o.value, o.label]));
+}
+
+// Static versions for non-component contexts
+const TARGET_GROUPS: { group: string; options: { value: Target; label: string }[] }[] = [
+  { group: "\u5E74\u4EE3", options: [
+    { value: "teens", label: "10\u4EE3" }, { value: "twenties", label: "20\u4EE3" },
+    { value: "thirties", label: "30\u4EE3" }, { value: "forties", label: "40\u4EE3" },
+    { value: "fifties", label: "50\u4EE3" }, { value: "sixties_plus", label: "60\u4EE3\u4EE5\u4E0A" },
+  ] },
+  { group: "\u8077\u696D\u30FB\u7ACB\u5834", options: [
+    { value: "student", label: "\u5B66\u751F" }, { value: "new_graduate", label: "\u65B0\u5352\u30FB\u7B2C\u4E8C\u65B0\u5352" },
+    { value: "working_professional", label: "\u4F1A\u793E\u54E1" }, { value: "freelancer", label: "\u30D5\u30EA\u30FC\u30E9\u30F3\u30B9" },
+    { value: "homemaker", label: "\u4E3B\u5A66\u30FB\u4E3B\u592B" }, { value: "retired", label: "\u30EA\u30BF\u30A4\u30A2\u5C64" },
+  ] },
+  { group: "\u4E16\u5E2F\u69CB\u6210", options: [
+    { value: "single", label: "\u5358\u8EAB" }, { value: "couple", label: "\u592B\u5A66\u30FB\u30AB\u30C3\u30D7\u30EB" },
+    { value: "parent_young_child", label: "\u5B50\u80B2\u3066\uFF08\u672A\u5C31\u5B66\u5150\uFF09" },
+    { value: "parent_school_child", label: "\u5B50\u80B2\u3066\uFF08\u5B66\u7AE5\uFF09" },
+  ] },
+  { group: "\u6CD5\u4EBA", options: [
+    { value: "startup", label: "\u30B9\u30BF\u30FC\u30C8\u30A2\u30C3\u30D7" },
+    { value: "smb", label: "\u4E2D\u5C0F\u4F01\u696D" }, { value: "enterprise", label: "\u5927\u4F01\u696D" },
+  ] },
+];
 const ALL_TARGET_OPTIONS = TARGET_GROUPS.flatMap((g) => g.options);
 const TARGET_LABEL_MAP: Record<string, string> = Object.fromEntries(
   ALL_TARGET_OPTIONS.map((o) => [o.value, o.label])
 );
 
+function getCategoryOptions(t: (key: string) => string): { value: Category; label: string }[] {
+  return [
+    { value: "saas", label: t("category.saas") },
+    { value: "ec", label: t("category.ec") },
+    { value: "media", label: t("category.media") },
+    { value: "food", label: t("category.food") },
+    { value: "mobility", label: t("category.mobility") },
+    { value: "healthcare", label: t("category.healthcare") },
+    { value: "education", label: t("category.education") },
+    { value: "entertainment", label: t("category.entertainment") },
+    { value: "finance", label: t("category.finance") },
+  ];
+}
+
+function getPriceModelOptions(t: (key: string) => string): { value: PriceModel; label: string }[] {
+  return [
+    { value: "free", label: t("priceModel.free") },
+    { value: "freemium", label: t("priceModel.freemium") },
+    { value: "subscription", label: t("priceModel.subscription") },
+    { value: "usage", label: t("priceModel.usage") },
+    { value: "one_time", label: t("priceModel.one_time") },
+  ];
+}
+
+function getCompetitionOptions(t: (key: string) => string): { value: Competition; label: string }[] {
+  return [
+    { value: "none", label: t("competition.none") },
+    { value: "weak", label: t("competition.weak") },
+    { value: "strong", label: t("competition.strong") },
+  ];
+}
+
 const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
-  { value: "saas", label: "SaaS" },
-  { value: "ec", label: "EC" },
-  { value: "media", label: "メディア" },
-  { value: "food", label: "フード" },
-  { value: "mobility", label: "モビリティ" },
-  { value: "healthcare", label: "ヘルスケア" },
-  { value: "education", label: "教育" },
-  { value: "entertainment", label: "エンタメ" },
-  { value: "finance", label: "金融" },
+  { value: "saas", label: "SaaS" }, { value: "ec", label: "EC" },
+  { value: "media", label: "\u30E1\u30C7\u30A3\u30A2" }, { value: "food", label: "\u30D5\u30FC\u30C9" },
+  { value: "mobility", label: "\u30E2\u30D3\u30EA\u30C6\u30A3" }, { value: "healthcare", label: "\u30D8\u30EB\u30B9\u30B1\u30A2" },
+  { value: "education", label: "\u6559\u80B2" }, { value: "entertainment", label: "\u30A8\u30F3\u30BF\u30E1" },
+  { value: "finance", label: "\u91D1\u878D" },
 ];
 
 const PRICE_MODEL_OPTIONS: { value: PriceModel; label: string }[] = [
-  { value: "free", label: "無料" },
-  { value: "freemium", label: "フリーミアム" },
-  { value: "subscription", label: "サブスクリプション" },
-  { value: "usage", label: "従量課金" },
-  { value: "one_time", label: "買い切り" },
+  { value: "free", label: "\u7121\u6599" }, { value: "freemium", label: "\u30D5\u30EA\u30FC\u30DF\u30A2\u30E0" },
+  { value: "subscription", label: "\u30B5\u30D6\u30B9\u30AF\u30EA\u30D7\u30B7\u30E7\u30F3" },
+  { value: "usage", label: "\u5F93\u91CF\u8AB2\u91D1" }, { value: "one_time", label: "\u8CB7\u3044\u5207\u308A" },
 ];
 
 const COMPETITION_OPTIONS: { value: Competition; label: string }[] = [
-  { value: "none", label: "なし" },
-  { value: "weak", label: "弱い" },
-  { value: "strong", label: "強い" },
+  { value: "none", label: "\u306A\u3057" }, { value: "weak", label: "\u5F31\u3044" }, { value: "strong", label: "\u5F37\u3044" },
 ];
 
 const PERIOD_STEPS: Record<Period, number> = {
@@ -279,33 +326,42 @@ const PERIOD_STEPS: Record<Period, number> = {
   "3years": 1095,
 };
 
+function getPeriodLabels(t: (key: string) => string): Record<Period, string> {
+  return { "90days": t("period.90days"), "1year": t("period.1year"), "3years": t("period.3years") };
+}
+
+function getGenderLabels(t: (key: string) => string): Record<string, string> {
+  return { male: t("gender.male"), female: t("gender.female") };
+}
+
+function getRegionLabels(t: (key: string) => string): Record<string, string> {
+  return {
+    kanto: t("region.kanto"), kansai: t("region.kansai"), chubu: t("region.chubu"),
+    kyushu: t("region.kyushu"), tohoku: t("region.tohoku"), hokkaido: t("region.hokkaido"),
+    chugoku: t("region.chugoku"), shikoku: t("region.shikoku"),
+  };
+}
+
+function getIncomeLevelLabels(t: (key: string) => string): Record<string, string> {
+  return { low: t("income.low"), middle: t("income.middle"), high: t("income.high") };
+}
+
+function getFunnelLabels(t: (key: string) => string): Record<number, string> {
+  return { 0: t("funnel.unaware"), 1: t("funnel.aware"), 2: t("funnel.interest"), 3: t("funnel.consideration"), 4: t("funnel.adopted") };
+}
+
 const PERIOD_LABELS: Record<Period, string> = {
-  "90days": "90日間",
-  "1year": "1年間",
-  "3years": "3年間",
+  "90days": "90\u65E5\u9593", "1year": "1\u5E74\u9593", "3years": "3\u5E74\u9593",
 };
 
-const GENDER_LABELS: Record<string, string> = {
-  male: "男性",
-  female: "女性",
-};
+const GENDER_LABELS: Record<string, string> = { male: "\u7537\u6027", female: "\u5973\u6027" };
 
 const REGION_LABELS: Record<string, string> = {
-  kanto: "関東",
-  kansai: "関西",
-  chubu: "中部",
-  kyushu: "九州",
-  tohoku: "東北",
-  hokkaido: "北海道",
-  chugoku: "中国",
-  shikoku: "四国",
+  kanto: "\u95A2\u6771", kansai: "\u95A2\u897F", chubu: "\u4E2D\u90E8", kyushu: "\u4E5D\u5DDE",
+  tohoku: "\u6771\u5317", hokkaido: "\u5317\u6D77\u9053", chugoku: "\u4E2D\u56FD", shikoku: "\u56DB\u56FD",
 };
 
-const INCOME_LEVEL_LABELS: Record<string, string> = {
-  low: "低",
-  middle: "中",
-  high: "高",
-};
+const INCOME_LEVEL_LABELS: Record<string, string> = { low: "\u4F4E", middle: "\u4E2D", high: "\u9AD8" };
 
 const FUNNEL_COLORS: Record<number, string> = {
   0: "#94a3b8",  // UNAWARE - slate
@@ -316,11 +372,7 @@ const FUNNEL_COLORS: Record<number, string> = {
 };
 
 const FUNNEL_LABELS: Record<number, string> = {
-  0: "未認知",
-  1: "認知",
-  2: "興味",
-  3: "検討",
-  4: "採用",
+  0: "\u672A\u8A8D\u77E5", 1: "\u8A8D\u77E5", 2: "\u8208\u5473", 3: "\u691C\u8A0E", 4: "\u63A1\u7528",
 };
 
 const FUNNEL_KEYS = ["unaware", "aware", "interest", "consideration", "adopted"] as const;
@@ -330,34 +382,34 @@ const FUNNEL_KEYS = ["unaware", "aware", "interest", "consideration", "adopted"]
 function classifyError(err: unknown, status?: number): ErrorInfo {
   if (err instanceof TypeError && (err.message.includes("fetch") || err.message.includes("network") || err.message.includes("Failed"))) {
     return {
-      message: "サーバーに接続できません。バックエンドが起動しているか確認してください。",
+      message: "error.network",
       type: "network",
       retryable: true,
     };
   }
   if (err instanceof DOMException && err.name === "AbortError") {
     return {
-      message: "リクエストがタイムアウトしました。時間をおいて再度お試しください。",
+      message: "error.timeout",
       type: "timeout",
       retryable: true,
     };
   }
   if (status && status >= 500) {
     return {
-      message: `サーバーエラーが発生しました（${status}）。しばらくしてから再度お試しください。`,
+      message: `error.server|${status}`,
       type: "server",
       retryable: true,
     };
   }
   if (status && status >= 400 && status < 500) {
     return {
-      message: `入力内容に問題があります（${status}）。内容を確認してください。`,
+      message: `error.validation|${status}`,
       type: "validation",
       retryable: false,
     };
   }
   return {
-    message: "予期しないエラーが発生しました。再度お試しください。",
+    message: "error.unknown",
     type: "unknown",
     retryable: true,
   };
@@ -365,18 +417,20 @@ function classifyError(err: unknown, status?: number): ErrorInfo {
 
 // ---------- What-If Presets ----------
 
-const WHATIF_PRESETS: WhatIfPreset[] = [
-  { label: "競合値下げ", text: "競合他社が20%値下げした" },
-  { label: "テレビCM", text: "全国ネットでテレビCMを1週間放映した" },
-  { label: "SNS炎上", text: "SNSで悪評が拡散し口コミが悪化した" },
-  { label: "インフルエンサー", text: "フォロワー100万人のインフルエンサーが紹介した" },
-  { label: "価格改定(↑)", text: "月額料金を30%値上げした" },
-  { label: "無料キャンペーン", text: "1ヶ月間の無料トライアルキャンペーンを実施した" },
-  { label: "競合参入", text: "大手企業が類似サービスを開始した" },
-  { label: "口コミ拡散", text: "SNSでバズって口コミが急拡散した" },
-  { label: "規制強化", text: "業界に対する規制が強化された" },
-  { label: "提携発表", text: "大手企業とのパートナーシップを発表した" },
-];
+function getWhatIfPresets(t: (key: string) => string): WhatIfPreset[] {
+  return [
+    { label: t("preset.competitorDiscount"), text: t("preset.competitorDiscount.text") },
+    { label: t("preset.tvCm"), text: t("preset.tvCm.text") },
+    { label: t("preset.snsBachlash"), text: t("preset.snsBachlash.text") },
+    { label: t("preset.influencer"), text: t("preset.influencer.text") },
+    { label: t("preset.priceIncrease"), text: t("preset.priceIncrease.text") },
+    { label: t("preset.freeTrial"), text: t("preset.freeTrial.text") },
+    { label: t("preset.newCompetitor"), text: t("preset.newCompetitor.text") },
+    { label: t("preset.viralWom"), text: t("preset.viralWom.text") },
+    { label: t("preset.regulation"), text: t("preset.regulation.text") },
+    { label: t("preset.partnership"), text: t("preset.partnership.text") },
+  ];
+}
 
 // ---------- LocalStorage Helpers ----------
 
@@ -474,13 +528,29 @@ function ErrorAlert({
   onRetry?: () => void;
   onDismiss?: () => void;
 }) {
-  const iconByType: Record<ErrorInfo["type"], string> = {
-    network: "接続",
-    timeout: "タイムアウト",
-    server: "サーバー",
-    validation: "入力",
-    unknown: "不明な",
+  const { t } = useI18n();
+
+  const typeKeyMap: Record<ErrorInfo["type"], string> = {
+    network: "error.type.network",
+    timeout: "error.type.timeout",
+    server: "error.type.server",
+    validation: "error.type.validation",
+    unknown: "error.type.unknown",
   };
+
+  // Translate the message: if it's an i18n key, translate it; otherwise display as-is
+  function translateMessage(msg: string): string {
+    // Handle "error.server|500" and "error.validation|422" patterns
+    if (msg.includes("|")) {
+      const [key, status] = msg.split("|");
+      return t(key).replace("{status}", status ?? "");
+    }
+    // Check if it's a known i18n key
+    if (msg.startsWith("error.")) {
+      return t(msg);
+    }
+    return msg;
+  }
 
   return (
     <div
@@ -495,10 +565,10 @@ function ErrorAlert({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-red-800 dark:text-red-200">
-            {iconByType[error.type]}エラー
+            {t(typeKeyMap[error.type])}{t("error.suffix")}
           </p>
           <p className="mt-1 text-sm text-red-700 dark:text-red-300">
-            {error.message}
+            {translateMessage(error.message)}
           </p>
           <div className="mt-3 flex gap-2">
             {error.retryable && onRetry && (
@@ -507,7 +577,7 @@ function ErrorAlert({
                 onClick={onRetry}
                 className="rounded-md bg-red-100 px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-200 dark:hover:bg-red-800 transition-colors"
               >
-                再試行
+                {t("error.retry")}
               </button>
             )}
             {onDismiss && (
@@ -516,7 +586,7 @@ function ErrorAlert({
                 onClick={onDismiss}
                 className="rounded-md px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900 transition-colors"
               >
-                閉じる
+                {t("error.dismiss")}
               </button>
             )}
           </div>
@@ -527,27 +597,28 @@ function ErrorAlert({
 }
 
 function ODIBadge({ score, label }: { score: number; label: string }) {
+  const { t } = useI18n();
   const colorMap: Record<string, string> = {
     underserved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
     served: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
     overserved: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
   };
   const labelMap: Record<string, string> = {
-    underserved: "大きなチャンス",
-    served: "競合と同程度",
-    overserved: "差別化が必要",
+    underserved: t("odi.underserved"),
+    served: t("odi.served"),
+    overserved: t("odi.overserved"),
   };
   const descMap: Record<string, string> = {
-    underserved: "顧客ニーズが満たされておらず、市場に大きな参入機会があります",
-    served: "顧客ニーズはある程度満たされており、既存競合と同水準です",
-    overserved: "既に十分な選択肢があり、強い差別化が必要です",
+    underserved: t("odi.underserved.desc"),
+    served: t("odi.served.desc"),
+    overserved: t("odi.overserved.desc"),
   };
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${colorMap[label] ?? ""}`}
       title={descMap[label] ?? ""}
     >
-      市場機会: {score.toFixed(1)} / 10 — {labelMap[label] ?? label}
+      {t("odi.marketOpportunity")}: {score.toFixed(1)} / 10 — {labelMap[label] ?? label}
     </span>
   );
 }
@@ -592,9 +663,9 @@ function priceToSlider(p: number): number {
   return Math.round(Math.log10(p / 100000 * 999 + 1) / 3 * SLIDER_MAX);
 }
 
-function formatPriceTick(t: number): string {
+function formatPriceTick(t: number, locale?: string): string {
   if (t === 0) return "\u00a50";
-  if (t >= 10000) return `${t / 10000}万`;
+  if (t >= 10000) return locale === "en" ? `¥${t / 10000}w` : `${t / 10000}万`;
   return `${t / 1000}k`;
 }
 
@@ -607,6 +678,7 @@ function PriceSlider({
   onChange: (v: number) => void;
   disabled?: boolean;
 }) {
+  const { t, locale } = useI18n();
   return (
     <div className="space-y-1">
       <input
@@ -617,19 +689,19 @@ function PriceSlider({
         value={priceToSlider(value)}
         onChange={(e) => onChange(sliderToPrice(Number(e.target.value)))}
         disabled={disabled}
-        aria-label="価格スライダー"
+        aria-label={t("form.priceSlider")}
         className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600 bg-zinc-200 dark:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
       />
       <div className="relative h-4 text-[10px] text-zinc-400 dark:text-zinc-500">
-        {PRICE_TICKS.map((t) => {
-          const pct = (priceToSlider(t) / SLIDER_MAX) * 100;
+        {PRICE_TICKS.map((tick) => {
+          const pct = (priceToSlider(tick) / SLIDER_MAX) * 100;
           return (
             <span
-              key={t}
+              key={tick}
               className="absolute -translate-x-1/2"
               style={{ left: `${pct}%` }}
             >
-              {formatPriceTick(t)}
+              {formatPriceTick(tick, locale)}
             </span>
           );
         })}
@@ -691,14 +763,15 @@ function buildAgeDistribution(
 function buildIncomeDistribution(
   adopted: AgentSnapshot[],
   notAdopted: AgentSnapshot[],
+  t?: (key: string) => string,
 ) {
   const bins = [
-    { label: "~200万", max: 200 },
-    { label: "200-300万", max: 300 },
-    { label: "300-400万", max: 400 },
-    { label: "400-500万", max: 500 },
-    { label: "500-600万", max: 600 },
-    { label: "600万~", max: Infinity },
+    { label: t ? t("income.bin.under200") : "~200万", max: 200 },
+    { label: t ? t("income.bin.200to300") : "200-300万", max: 300 },
+    { label: t ? t("income.bin.300to400") : "300-400万", max: 400 },
+    { label: t ? t("income.bin.400to500") : "400-500万", max: 500 },
+    { label: t ? t("income.bin.500to600") : "500-600万", max: 600 },
+    { label: t ? t("income.bin.over600") : "600万~", max: Infinity },
   ];
   const getBin = (income: number) => {
     for (const b of bins) if (income < b.max) return b.label;
@@ -717,39 +790,40 @@ function buildIncomeDistribution(
 
 // ---------- Dashboard Component ----------
 
-function stepsToPeriodLabel(steps: number): string {
-  if (steps <= 90) return "90日間";
-  if (steps <= 365) return "1年間";
-  return "3年間";
+function stepsToPeriodLabel(steps: number, t: (key: string) => string): string {
+  if (steps <= 90) return t("period.90days");
+  if (steps <= 365) return t("period.1year");
+  return t("period.3years");
 }
 
 /** Section 1: Executive Summary — TAM, adopters, ODI at a glance */
 function SummarySection({ result }: { result: SimulateResponse }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <SummaryCard
-          label="推定TAM"
+          label={t("summary.estimatedTam")}
           value={(result.config.tam ?? 0).toLocaleString()}
-          unit="人"
+          unit={t("summary.unit.people")}
         />
         <SummaryCard
-          label="総採用者数"
+          label={t("summary.totalAdopters")}
           value={result.summary.total_adopters.toLocaleString()}
-          unit="人"
+          unit={t("summary.unit.people")}
         />
         <SummaryCard
-          label="最大日次採用数"
+          label={t("summary.peakDaily")}
           value={result.summary.peak_daily.toLocaleString()}
-          unit="人/日"
+          unit={t("summary.unit.peoplePerDay")}
         />
         <SummaryCard
-          label="採用率"
+          label={t("summary.adoptionRate")}
           value={result.summary.adoption_rate.toFixed(1)}
           unit="%"
         />
         <SummaryCard
-          label="市場機会スコア"
+          label={t("summary.marketOpportunityScore")}
           value={(result.odi_score ?? 0).toFixed(1)}
           unit="/ 10"
           accent={
@@ -761,10 +835,10 @@ function SummarySection({ result }: { result: SimulateResponse }) {
           }
           sub={
             result.odi_label === "underserved"
-              ? "大きなチャンス"
+              ? t("odi.underserved")
               : result.odi_label === "overserved"
-                ? "差別化が必要"
-                : "競合と同程度"
+                ? t("odi.overserved")
+                : t("odi.served")
           }
         />
       </div>
@@ -777,18 +851,20 @@ function SummarySection({ result }: { result: SimulateResponse }) {
 
 /** Section 2: Diffusion Curves — S-curve, bell, Rogers, revenue */
 function DiffusionCurvesSection({ result, chartColors }: { result: SimulateResponse; chartColors: ChartColors }) {
+  const { t } = useI18n();
   const chartData = buildDailyChartData(result);
+  const rogersLabels = getRogersLabels(t);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
       {/* Cumulative S-Curve */}
-      <ChartCard title="累積採用者数（S字カーブ）" chartId="s-curve">
+      <ChartCard title={t("chart.sCurve.title")} chartId="s-curve">
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
               dataKey="day"
-              label={{ value: "日数", position: "insideBottom", offset: -5, fill: chartColors.axis }}
+              label={{ value: t("chart.axis.days"), position: "insideBottom", offset: -5, fill: chartColors.axis }}
               tick={{ fill: chartColors.axis }}
             />
             <YAxis tick={{ fill: chartColors.axis }} />
@@ -799,20 +875,20 @@ function DiffusionCurvesSection({ result, chartColors }: { result: SimulateRespo
               stroke="#2563eb"
               strokeWidth={2}
               dot={false}
-              name="累積採用者数"
+              name={t("chart.cumulativeAdopters")}
             />
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
 
       {/* Daily Bell Curve */}
-      <ChartCard title="日次新規採用者数（ベル型カーブ）" chartId="daily-bell">
+      <ChartCard title={t("chart.dailyBell.title")} chartId="daily-bell">
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
               dataKey="day"
-              label={{ value: "日数", position: "insideBottom", offset: -5, fill: chartColors.axis }}
+              label={{ value: t("chart.axis.days"), position: "insideBottom", offset: -5, fill: chartColors.axis }}
               tick={{ fill: chartColors.axis }}
             />
             <YAxis tick={{ fill: chartColors.axis }} />
@@ -824,26 +900,26 @@ function DiffusionCurvesSection({ result, chartColors }: { result: SimulateRespo
               fill="#7c3aed"
               fillOpacity={0.2}
               strokeWidth={2}
-              name="新規採用者数"
+              name={t("chart.dailyNewAdopters")}
             />
           </AreaChart>
         </ResponsiveContainer>
       </ChartCard>
 
       {/* Rogers Stacked Area */}
-      <ChartCard title="ロジャーズカテゴリ別採用推移" chartId="rogers-breakdown">
+      <ChartCard title={t("chart.rogersBreakdown.title")} chartId="rogers-breakdown">
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
               dataKey="day"
-              label={{ value: "日数", position: "insideBottom", offset: -5, fill: chartColors.axis }}
+              label={{ value: t("chart.axis.days"), position: "insideBottom", offset: -5, fill: chartColors.axis }}
               tick={{ fill: chartColors.axis }}
             />
             <YAxis tick={{ fill: chartColors.axis }} />
             <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder }} />
             <Legend
-              formatter={(value) => ROGERS_LABELS[value as string] ?? value}
+              formatter={(value) => rogersLabels[value as string] ?? value}
             />
             {(
               Object.keys(ROGERS_COLORS) as Array<keyof typeof ROGERS_COLORS>
@@ -864,21 +940,21 @@ function DiffusionCurvesSection({ result, chartColors }: { result: SimulateRespo
       </ChartCard>
 
       {/* Revenue Chart */}
-      <ChartCard title="累積売上推移" chartId="revenue">
+      <ChartCard title={t("chart.revenue.title")} chartId="revenue">
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
               dataKey="day"
-              label={{ value: "日数", position: "insideBottom", offset: -5, fill: chartColors.axis }}
+              label={{ value: t("chart.axis.days"), position: "insideBottom", offset: -5, fill: chartColors.axis }}
               tick={{ fill: chartColors.axis }}
             />
             <YAxis tick={{ fill: chartColors.axis }} />
             <Tooltip
               contentStyle={{ backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder }}
               formatter={(value) => [
-                `${Number(value).toLocaleString()}円`,
-                "累積売上（推計）",
+                `${Number(value).toLocaleString()}${t("misc.yen")}`,
+                t("chart.cumulativeRevenue"),
               ]}
             />
             <Line
@@ -887,7 +963,7 @@ function DiffusionCurvesSection({ result, chartColors }: { result: SimulateRespo
               stroke="#059669"
               strokeWidth={2}
               dot={false}
-              name="累積売上"
+              name={t("chart.cumulativeRevenue")}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -898,6 +974,7 @@ function DiffusionCurvesSection({ result, chartColors }: { result: SimulateRespo
 
 /** Section 4: Agent-level analysis — network graph + demographic distributions */
 function AgentAnalysisSection({ result, chartColors, isDark }: { result: SimulateResponse; chartColors: ChartColors; isDark: boolean }) {
+  const { t } = useI18n();
   const agents = result.agent_snapshot ?? [];
   const adoptedAgents = agents.filter((a) => a.adopted);
   const notAdoptedAgents = agents.filter((a) => !a.adopted);
@@ -906,7 +983,7 @@ function AgentAnalysisSection({ result, chartColors, isDark }: { result: Simulat
     <div className="space-y-4 sm:space-y-6">
       {/* Social Network Graph - full width */}
       {result.network && result.network.nodes.length > 0 && (
-        <ChartCard title="ソーシャルグラフ（口コミ拡散ネットワーク）">
+        <ChartCard title={t("chart.socialGraph.title")}>
           <NetworkGraph
             network={result.network}
             numSteps={result.config.num_steps}
@@ -919,7 +996,7 @@ function AgentAnalysisSection({ result, chartColors, isDark }: { result: Simulat
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <ChartCard title="エージェント分布（年齢）" chartId="age-dist">
+        <ChartCard title={t("chart.ageDist.title")} chartId="age-dist">
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={buildAgeDistribution(adoptedAgents, notAdoptedAgents)}>
               <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
@@ -927,22 +1004,22 @@ function AgentAnalysisSection({ result, chartColors, isDark }: { result: Simulat
               <YAxis tick={{ fill: chartColors.axis }} />
               <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder }} />
               <Legend />
-              <Bar name="採用済み" dataKey="adopted" fill="#2563eb" />
-              <Bar name="未採用" dataKey="notAdopted" fill={chartColors.scatterInactive} />
+              <Bar name={t("chart.adopted")} dataKey="adopted" fill="#2563eb" />
+              <Bar name={t("chart.notAdopted")} dataKey="notAdopted" fill={chartColors.scatterInactive} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="エージェント分布（収入）" chartId="income-dist">
+        <ChartCard title={t("chart.incomeDist.title")} chartId="income-dist">
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={buildIncomeDistribution(adoptedAgents, notAdoptedAgents)}>
+            <BarChart data={buildIncomeDistribution(adoptedAgents, notAdoptedAgents, t)}>
               <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
               <XAxis dataKey="label" tick={{ fill: chartColors.axis }} />
               <YAxis tick={{ fill: chartColors.axis }} />
               <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder }} />
               <Legend />
-              <Bar name="採用済み" dataKey="adopted" fill="#2563eb" />
-              <Bar name="未採用" dataKey="notAdopted" fill={chartColors.scatterInactive} />
+              <Bar name={t("chart.adopted")} dataKey="adopted" fill="#2563eb" />
+              <Bar name={t("chart.notAdopted")} dataKey="notAdopted" fill={chartColors.scatterInactive} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -987,6 +1064,7 @@ function NetworkGraph({
   isDark: boolean;
   serviceName: string;
 }) {
+  const { t: tNetwork } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [currentDay, setCurrentDay] = useState(numSteps);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -1237,9 +1315,9 @@ function NetworkGraph({
           type="button"
           onClick={() => setIsPlaying(!isPlaying)}
           className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 transition-colors"
-          aria-label={isPlaying ? "一時停止" : "拡散アニメーション再生"}
+          aria-label={isPlaying ? tNetwork("network.pause") : tNetwork("network.play")}
         >
-          {isPlaying ? "⏸ 停止" : "▶ 拡散を再生"}
+          {isPlaying ? `⏸ ${tNetwork("network.pause")}` : `▶ ${tNetwork("network.play")}`}
         </button>
         <input
           type="range"
@@ -1251,10 +1329,10 @@ function NetworkGraph({
             setCurrentDay(Number(e.target.value));
           }}
           className="flex-1 min-w-[120px]"
-          aria-label="シミュレーション日数スライダー"
+          aria-label={tNetwork("network.sliderLabel")}
         />
         <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-          Day {currentDay} / {numSteps} — 採用: {Math.round(adoptedAtDay * scaleFactor).toLocaleString()}人
+          Day {currentDay} / {numSteps} — {tNetwork("network.adoption")}: {Math.round(adoptedAtDay * scaleFactor).toLocaleString()}{tNetwork("misc.people")}
         </span>
       </div>
 
@@ -1279,7 +1357,7 @@ function NetworkGraph({
             ))}
             <span className="flex items-center gap-1">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-gray-300" />
-              未採用
+              {tNetwork("network.notAdopted")}
             </span>
           </div>
         </div>
@@ -1305,7 +1383,7 @@ function NetworkGraph({
                 type="button"
                 onClick={() => setSelectedNodeId(null)}
                 className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                aria-label="パネルを閉じる"
+                aria-label={tNetwork("agent.closePanel")}
               >
                 ✕
               </button>
@@ -1315,33 +1393,33 @@ function NetworkGraph({
             <div className="mb-3">
               {selectedNode.adopted_day !== null ? (
                 <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
-                  採用済み（Day {selectedNode.adopted_day}）
+                  {tNetwork("agent.adoptedDay").replace("{day}", String(selectedNode.adopted_day))}
                 </span>
               ) : (
                 <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400">
-                  {FUNNEL_LABELS[selectedAgent.funnel_stage] ?? "未認知"}
+                  {getFunnelLabels(tNetwork)[selectedAgent.funnel_stage] ?? tNetwork("funnel.unaware")}
                 </span>
               )}
             </div>
 
             {/* Profile details */}
             <dl className="space-y-1.5 text-xs">
-              <ProfileRow label="タイプ" value={ROGERS_LABELS[selectedAgent.rogers_type] ?? selectedAgent.rogers_type} color={(ROGERS_COLORS as Record<string, string>)[selectedAgent.rogers_type]} />
-              <ProfileRow label="年齢" value={`${selectedAgent.age}歳`} />
-              <ProfileRow label="性別" value={GENDER_LABELS[selectedAgent.gender] ?? selectedAgent.gender} />
-              <ProfileRow label="地域" value={REGION_LABELS[selectedAgent.region] ?? selectedAgent.region} />
-              <ProfileRow label="年収" value={`${selectedAgent.income.toLocaleString()}万円`} />
-              <ProfileRow label="収入層" value={INCOME_LEVEL_LABELS[selectedAgent.income_level] ?? selectedAgent.income_level} />
-              <ProfileRow label="価格感度" value={selectedAgent.price_sensitivity.toFixed(2)} />
-              <ProfileRow label="認知度" value={`${(selectedAgent.awareness * 100).toFixed(1)}%`} />
-              <ProfileRow label="JTBDフィット" value={`${(selectedAgent.jtbd_fit * 100).toFixed(0)}%`}
+              <ProfileRow label={tNetwork("agent.type")} value={getRogersLabels(tNetwork)[selectedAgent.rogers_type] ?? selectedAgent.rogers_type} color={(ROGERS_COLORS as Record<string, string>)[selectedAgent.rogers_type]} />
+              <ProfileRow label={tNetwork("agent.age")} value={`${selectedAgent.age}${tNetwork("misc.yearsOld")}`} />
+              <ProfileRow label={tNetwork("agent.gender")} value={getGenderLabels(tNetwork)[selectedAgent.gender] ?? selectedAgent.gender} />
+              <ProfileRow label={tNetwork("agent.region")} value={getRegionLabels(tNetwork)[selectedAgent.region] ?? selectedAgent.region} />
+              <ProfileRow label={tNetwork("agent.income")} value={`${selectedAgent.income.toLocaleString()}${tNetwork("misc.tenThousandYen")}`} />
+              <ProfileRow label={tNetwork("agent.incomeLevel")} value={getIncomeLevelLabels(tNetwork)[selectedAgent.income_level] ?? selectedAgent.income_level} />
+              <ProfileRow label={tNetwork("agent.priceSensitivity")} value={selectedAgent.price_sensitivity.toFixed(2)} />
+              <ProfileRow label={tNetwork("agent.awareness")} value={`${(selectedAgent.awareness * 100).toFixed(1)}%`} />
+              <ProfileRow label={tNetwork("agent.jtbdFit")} value={`${(selectedAgent.jtbd_fit * 100).toFixed(0)}%`}
                 color={selectedAgent.jtbd_fit > 0.6 ? "#22c55e" : selectedAgent.jtbd_fit > 0.35 ? "#f59e0b" : "#9ca3af"} />
             </dl>
 
             {/* Forces of Progress */}
             {selectedAgent.forces && (
               <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-                <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">Forces of Progress</p>
+                <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">{tNetwork("agent.forcesTitle")}</p>
                 <ForcesDisplay forces={selectedAgent.forces} compact />
               </div>
             )}
@@ -1358,7 +1436,7 @@ function NetworkGraph({
             {/* Neighbors */}
             <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                隣接エージェント（{selectedNeighborIds.length}人）
+                {tNetwork("agent.neighborsCount").replace("{count}", String(selectedNeighborIds.length))}
               </p>
               <div className="flex flex-wrap gap-1">
                 {selectedNeighborIds.slice(0, 20).map((nid) => {
@@ -1407,15 +1485,19 @@ function ProfileRow({ label, value, color }: { label: string; value: string; col
 
 // ---------- Forces & Explanation Components ----------
 
-const FORCES_BARS = [
-  { key: "f1_push" as const, label: "F1 Push（不満）", color: "#f97316" },
-  { key: "f2_pull" as const, label: "F2 Pull（引力）", color: "#22c55e" },
-  { key: "f3_anxiety" as const, label: "F3 Anxiety（不安）", color: "#ef4444" },
-  { key: "f4_habit" as const, label: "F4 Habit（慣性）", color: "#8b5cf6" },
-] as const;
+function getForcesBars(t: (key: string) => string) {
+  return [
+    { key: "f1_push" as const, label: t("forces.f1_push"), color: "#f97316" },
+    { key: "f2_pull" as const, label: t("forces.f2_pull"), color: "#22c55e" },
+    { key: "f3_anxiety" as const, label: t("forces.f3_anxiety"), color: "#ef4444" },
+    { key: "f4_habit" as const, label: t("forces.f4_habit"), color: "#8b5cf6" },
+  ];
+}
 
 function ForcesDisplay({ forces, compact = false }: { forces: AgentForces; compact?: boolean }) {
-  const barData = FORCES_BARS.map(({ key, label, color }) => ({
+  const { t } = useI18n();
+  const forcesBars = getForcesBars(t);
+  const barData = forcesBars.map(({ key, label, color }) => ({
     name: label,
     value: Math.round(forces[key] * 100),
     color,
@@ -1426,7 +1508,7 @@ function ForcesDisplay({ forces, compact = false }: { forces: AgentForces; compa
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">スイッチスコア</span>
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t("forces.switchScore")}</span>
         <span className="text-sm font-bold" style={{ color: switchColor }}>
           {(forces.switch_score * 100).toFixed(0)}%
         </span>
@@ -1449,51 +1531,52 @@ function ForcesDisplay({ forces, compact = false }: { forces: AgentForces; compa
         </BarChart>
       </ResponsiveContainer>
       <dl className="mt-2 space-y-1 text-xs">
-        <ProfileRow label="紹介可能性" value={`${(forces.referral_likelihood * 100).toFixed(0)}%`} />
-        <ProfileRow label="口コミ感情価" value={`${(forces.word_of_mouth_valence * 100).toFixed(0)}%`} />
+        <ProfileRow label={t("forces.referralLikelihood")} value={`${(forces.referral_likelihood * 100).toFixed(0)}%`} />
+        <ProfileRow label={t("forces.womValence")} value={`${(forces.word_of_mouth_valence * 100).toFixed(0)}%`} />
       </dl>
     </div>
   );
 }
 
-function generateRuleBasedExplanation(agent: AgentSnapshot): string {
+function generateRuleBasedExplanation(agent: AgentSnapshot, t: (key: string) => string): string {
   const f = agent.forces;
-  if (!f) return "フォース情報が利用できません。";
+  if (!f) return t("explanation.noForces");
 
   const parts: string[] = [];
+  const pct = (v: number) => (v * 100).toFixed(0);
 
   if (f.switch_score > 0.6) {
-    parts.push(`スイッチスコアが${(f.switch_score * 100).toFixed(0)}%と高く、採用する可能性が高いプロファイルです。`);
+    parts.push(t("explanation.switchHigh").replace("{pct}", pct(f.switch_score)));
   } else if (f.switch_score > 0.35) {
-    parts.push(`スイッチスコアは${(f.switch_score * 100).toFixed(0)}%と中程度で、採用には追加のきっかけが必要です。`);
+    parts.push(t("explanation.switchMedium").replace("{pct}", pct(f.switch_score)));
   } else {
-    parts.push(`スイッチスコアが${(f.switch_score * 100).toFixed(0)}%と低く、現状維持を好む傾向があります。`);
+    parts.push(t("explanation.switchLow").replace("{pct}", pct(f.switch_score)));
   }
 
   if (f.f2_pull > f.f1_push && f.f2_pull > 0.55) {
-    parts.push(`新サービスへの引力（Pull: ${(f.f2_pull * 100).toFixed(0)}%）が採用の主な動機です。`);
+    parts.push(t("explanation.pullDominant").replace("{pct}", pct(f.f2_pull)));
   } else if (f.f1_push > 0.55) {
-    parts.push(`現状への不満（Push: ${(f.f1_push * 100).toFixed(0)}%）が変化の原動力です。`);
+    parts.push(t("explanation.pushDominant").replace("{pct}", pct(f.f1_push)));
   }
 
   if (f.f3_anxiety > f.f4_habit && f.f3_anxiety > 0.5) {
-    parts.push(`不安・リスク（Anxiety: ${(f.f3_anxiety * 100).toFixed(0)}%）が採用の主な障壁です。`);
+    parts.push(t("explanation.anxietyBarrier").replace("{pct}", pct(f.f3_anxiety)));
   } else if (f.f4_habit > 0.5) {
-    parts.push(`習慣・現状維持バイアス（Habit: ${(f.f4_habit * 100).toFixed(0)}%）が乗り換えを抑制しています。`);
+    parts.push(t("explanation.habitBarrier").replace("{pct}", pct(f.f4_habit)));
   }
 
   if (agent.adopted) {
     if (f.referral_likelihood > 0.5) {
-      parts.push(`採用後の紹介可能性が高く（${(f.referral_likelihood * 100).toFixed(0)}%）、口コミ拡散の起点になりえます。`);
+      parts.push(t("explanation.highReferral").replace("{pct}", pct(f.referral_likelihood)));
     } else if (f.word_of_mouth_valence < 0.45) {
-      parts.push(`口コミの感情価が低め（${(f.word_of_mouth_valence * 100).toFixed(0)}%）で、ネガティブな評判リスクがあります。`);
+      parts.push(t("explanation.lowWom").replace("{pct}", pct(f.word_of_mouth_valence)));
     }
   }
 
   if (agent.jtbd_fit > 0.7) {
-    parts.push(`JTBDフィットが高く（${(agent.jtbd_fit * 100).toFixed(0)}%）、ニーズ適合度が良好です。`);
+    parts.push(t("explanation.highJtbdFit").replace("{pct}", pct(agent.jtbd_fit)));
   } else if (agent.jtbd_fit < 0.4) {
-    parts.push(`JTBDフィットが低く（${(agent.jtbd_fit * 100).toFixed(0)}%）、ニーズ適合度に課題があります。`);
+    parts.push(t("explanation.lowJtbdFit").replace("{pct}", pct(agent.jtbd_fit)));
   }
 
   return parts.join(" ");
@@ -1524,9 +1607,10 @@ function NeighborComparison({
     return isHigh ? "text-green-600 dark:text-green-400" : "text-zinc-500 dark:text-zinc-400";
   };
 
+  const { t: tNeighbor } = useI18n();
   return (
     <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-2">隣接エージェントとのForces比較</p>
+      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-2">{tNeighbor("forces.comparison")}</p>
       <div className="overflow-x-auto">
         <table className="w-full text-[10px]">
           <thead>
@@ -1539,7 +1623,7 @@ function NeighborComparison({
           </thead>
           <tbody>
             <tr className="border-b border-zinc-100 dark:border-zinc-800">
-              <td className="pr-2 text-blue-600 dark:text-blue-400 font-medium py-1">#{selected.id} (自)</td>
+              <td className="pr-2 text-blue-600 dark:text-blue-400 font-medium py-1">#{selected.id} {tNeighbor("misc.self")}</td>
               {cols.map((c) => (
                 <td key={c.key} className={`text-center px-1 font-medium ${cellColor(selected.forces![c.key], c.isResistance)}`}>
                   {(selected.forces![c.key] * 100).toFixed(0)}
@@ -1564,7 +1648,8 @@ function NeighborComparison({
 }
 
 function AgentExplanation({ agent, serviceName }: { agent: AgentSnapshot; serviceName: string }) {
-  const ruleText = generateRuleBasedExplanation(agent);
+  const { t } = useI18n();
+  const ruleText = generateRuleBasedExplanation(agent, t);
   const [llmText, setLlmText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1609,7 +1694,7 @@ function AgentExplanation({ agent, serviceName }: { agent: AgentSnapshot; servic
       setShowLlm(true);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      setError("LLM説明の生成に失敗しました。");
+      setError(t("explanation.llmFailed"));
     } finally {
       setLoading(false);
     }
@@ -1621,11 +1706,11 @@ function AgentExplanation({ agent, serviceName }: { agent: AgentSnapshot; servic
     <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          行動説明{" "}
+          {t("explanation.title")}{" "}
           {showLlm ? (
-            <span className="text-[9px] text-blue-500">AI</span>
+            <span className="text-[9px] text-blue-500">{t("explanation.ai")}</span>
           ) : (
-            <span className="text-[9px] text-zinc-400">ルールベース</span>
+            <span className="text-[9px] text-zinc-400">{t("explanation.ruleBased")}</span>
           )}
         </p>
         <div className="flex gap-1">
@@ -1635,7 +1720,7 @@ function AgentExplanation({ agent, serviceName }: { agent: AgentSnapshot; servic
               onClick={() => setShowLlm(!showLlm)}
               className="text-[9px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 transition-colors"
             >
-              {showLlm ? "ルールベースへ" : "AIへ"}
+              {showLlm ? t("explanation.switchToRuleBased") : t("explanation.switchToAi")}
             </button>
           )}
           {!llmText && (
@@ -1645,7 +1730,7 @@ function AgentExplanation({ agent, serviceName }: { agent: AgentSnapshot; servic
               disabled={loading}
               className="text-[9px] text-blue-600 dark:text-blue-400 hover:text-blue-700 px-1.5 py-0.5 rounded border border-blue-300 dark:border-blue-700 transition-colors disabled:opacity-50"
             >
-              {loading ? "生成中..." : "詳細説明"}
+              {loading ? t("explanation.generating") : t("explanation.detailedExplanation")}
             </button>
           )}
         </div>
@@ -1670,10 +1755,14 @@ function SimulationForm({
   onResult,
   onRequestCapture,
   onLoadingChange,
+  onInferredParams,
+  onDescriptionChange,
 }: {
   onResult: (r: SimulateResponse) => void;
   onRequestCapture?: (req: SimulateRequest) => void;
   onLoadingChange?: (loading: boolean) => void;
+  onInferredParams?: (params: AutoResponse["inferred_params"] | null) => void;
+  onDescriptionChange?: (desc: string) => void;
 }) {
   // AI inference state
   const [description, setDescription] = useState("");
@@ -1700,8 +1789,8 @@ function SimulationForm({
   useEffect(() => {
     const savedForm = loadFromStorage<SavedFormState>(STORAGE_KEYS.formState);
     if (savedForm) {
-      if (savedForm.description) setDescription(savedForm.description);
-      if (savedForm.inferredParams) setInferredParams(savedForm.inferredParams);
+      if (savedForm.description) { setDescription(savedForm.description); onDescriptionChange?.(savedForm.description); }
+      if (savedForm.inferredParams) { setInferredParams(savedForm.inferredParams); onInferredParams?.(savedForm.inferredParams); }
       if (savedForm.serviceName) setServiceName(savedForm.serviceName);
       if (savedForm.price != null) setPrice(savedForm.price);
       if (savedForm.marketSize) setMarketSize(savedForm.marketSize);
@@ -1717,6 +1806,7 @@ function SimulationForm({
   // For retry
   const lastActionRef = useRef<(() => void) | null>(null);
 
+  const { t } = useI18n();
   const isLoading = aiLoading || simLoading;
 
   useEffect(() => {
@@ -1743,7 +1833,7 @@ function SimulationForm({
   const handleAiInfer = useCallback(async () => {
     if (!description.trim()) {
       setErrorInfo({
-        message: "サービスの説明を入力してください",
+        message: t("form.enterDescription"),
         type: "validation",
         retryable: false,
       });
@@ -1767,7 +1857,7 @@ function SimulationForm({
           setErrorInfo(classifyError(null, res.status));
         } else {
           setErrorInfo({
-            message: `エラー: ${res.status} - ${text}`,
+            message: t("form.errorPrefix").replace("{status}", String(res.status)).replace("{text}", text),
             type: "server",
             retryable: res.status >= 500,
           });
@@ -1777,6 +1867,7 @@ function SimulationForm({
       }
       const data: AutoResponse = await res.json();
       setInferredParams(data.inferred_params);
+      onInferredParams?.(data.inferred_params);
 
       // Prefill form with inferred params
       const firstSentence = description.split(/[。、\n]/)[0];
@@ -1834,7 +1925,7 @@ function SimulationForm({
     if (e) e.preventDefault();
     if (!inferredParams?.tam_estimate) {
       setErrorInfo({
-        message: "まずAI分析を実行してください",
+        message: t("form.runAiFirst"),
         type: "validation",
         retryable: false,
       });
@@ -1867,7 +1958,7 @@ function SimulationForm({
           setErrorInfo(classifyError(null, res.status));
         } else {
           setErrorInfo({
-            message: `エラー: ${res.status} - ${text}`,
+            message: t("form.errorPrefix").replace("{status}", String(res.status)).replace("{text}", text),
             type: "validation",
             retryable: false,
           });
@@ -1898,12 +1989,12 @@ function SimulationForm({
   return (
     <div className="space-y-4">
       {/* Step 1: AI Analysis */}
-      <InputField label="サービスのアイデアを説明してください" htmlFor="service-description">
+      <InputField label={t("form.descriptionLabel")} htmlFor="service-description">
         <textarea
           id="service-description"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="例: 通勤時間を有効活用するオーディオブックアプリ。月額980円で聴き放題。忙しいビジネスパーソン向け。"
+          onChange={(e) => { setDescription(e.target.value); onDescriptionChange?.(e.target.value); }}
+          placeholder={t("form.descriptionPlaceholder")}
           maxLength={1000}
           rows={4}
           disabled={isLoading}
@@ -1911,12 +2002,12 @@ function SimulationForm({
           className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
         />
         <p id="description-hint" className="mt-1 text-xs text-zinc-400">
-          {description.length}/1,000文字
+          {t("form.charCount").replace("{count}", String(description.length))}
         </p>
       </InputField>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <InputField label="シミュレーション精度" htmlFor="market-size-select">
+        <InputField label={t("form.simulationAccuracy")} htmlFor="market-size-select">
           <select
             id="market-size-select"
             value={marketSize}
@@ -1924,9 +2015,9 @@ function SimulationForm({
             disabled={isLoading}
             className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            <option value="small">簡易（500エージェント）</option>
-            <option value="medium">標準（1,000エージェント）</option>
-            <option value="large">高精度（5,000エージェント）</option>
+            <option value="small">{t("form.marketSize.small")}</option>
+            <option value="medium">{t("form.marketSize.medium")}</option>
+            <option value="large">{t("form.marketSize.large")}</option>
           </select>
         </InputField>
       </div>
@@ -1941,22 +2032,22 @@ function SimulationForm({
         {aiLoading ? (
           <span className="flex items-center justify-center gap-2">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            AI分析中
+            {t("form.aiAnalyzing")}
           </span>
-        ) : inferredParams ? "AIで再分析" : "AIで分析"}
+        ) : inferredParams ? t("form.aiReAnalyze") : t("form.aiAnalyze")}
       </button>
 
-      {aiLoading && <LoadingSpinner message="AIがサービスを分析中" />}
+      {aiLoading && <LoadingSpinner message={t("form.aiAnalyzingService")} />}
 
       {/* AI Inference Result */}
       {inferredParams && !aiLoading && (
         <div className="rounded-lg border border-purple-200 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-950">
           <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-3">
-            AI推論結果
+            {t("form.aiInferenceResult")}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <div className="col-span-1 sm:col-span-2">
-              <span className="text-purple-600 dark:text-purple-400">ジョブ:</span>{" "}
+              <span className="text-purple-600 dark:text-purple-400">{t("form.inferred.job")}</span>{" "}
               <span className="text-zinc-900 dark:text-zinc-100">
                 {Array.isArray(inferredParams.jobs)
                   ? inferredParams.jobs.map((j) => j.statement).join("、")
@@ -1964,27 +2055,27 @@ function SimulationForm({
               </span>
             </div>
             <div>
-              <span className="text-purple-600 dark:text-purple-400">ターゲット:</span>{" "}
+              <span className="text-purple-600 dark:text-purple-400">{t("form.inferred.target")}</span>{" "}
               <span className="text-zinc-900 dark:text-zinc-100">
                 {Array.isArray(inferredParams.target)
-                  ? inferredParams.target.map((t: string) => TARGET_LABEL_MAP[t] || t).join("、")
+                  ? inferredParams.target.map((tgt: string) => TARGET_LABEL_MAP[tgt] || tgt).join("、")
                   : TARGET_LABEL_MAP[inferredParams.target] || inferredParams.target}
               </span>
             </div>
             <div>
-              <span className="text-purple-600 dark:text-purple-400">カテゴリ:</span>{" "}
+              <span className="text-purple-600 dark:text-purple-400">{t("form.inferred.category")}</span>{" "}
               <span className="text-zinc-900 dark:text-zinc-100">
                 {CATEGORY_LABEL_MAP[inferredParams.category ?? ""] || inferredParams.category}
               </span>
             </div>
             <div>
-              <span className="text-purple-600 dark:text-purple-400">推奨価格:</span>{" "}
+              <span className="text-purple-600 dark:text-purple-400">{t("form.inferred.suggestedPrice")}</span>{" "}
               <span className="text-zinc-900 dark:text-zinc-100">
-                {(inferredParams.suggested_price ?? 0).toLocaleString()}円
+                {(inferredParams.suggested_price ?? 0).toLocaleString()}{t("misc.yen")}
               </span>
             </div>
             <div>
-              <span className="text-purple-600 dark:text-purple-400">競合:</span>{" "}
+              <span className="text-purple-600 dark:text-purple-400">{t("form.inferred.competition")}</span>{" "}
               <span className="text-zinc-900 dark:text-zinc-100">
                 {COMPETITION_LABEL_MAP[inferredParams.competition ?? ""] || inferredParams.competition}
               </span>
@@ -1992,7 +2083,7 @@ function SimulationForm({
           </div>
           {inferredParams.reasoning && (
             <div className="mt-3 text-sm">
-              <span className="text-purple-600 dark:text-purple-400">推論理由:</span>
+              <span className="text-purple-600 dark:text-purple-400">{t("form.inferred.reasoning")}</span>
               <p className="mt-1 text-zinc-700 dark:text-zinc-300">{inferredParams.reasoning}</p>
             </div>
           )}
@@ -2005,26 +2096,26 @@ function SimulationForm({
           <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
             {/* Always visible: service name, price, market size */}
             <div className="space-y-4">
-              <InputField label="サービス名" htmlFor="service-name">
+              <InputField label={t("form.serviceName")} htmlFor="service-name">
                 <input
                   id="service-name"
                   type="text"
                   value={serviceName}
                   onChange={(e) => setServiceName(e.target.value)}
-                  placeholder="例: StreamFit"
+                  placeholder={t("form.serviceNamePlaceholder")}
                   maxLength={100}
                   required
                   disabled={isLoading}
-                  aria-label="サービス名"
+                  aria-label={t("form.serviceName")}
                   className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                 />
               </InputField>
 
-              <InputField label={`想定価格（税込月額）: \u00a5${price.toLocaleString()}`}>
+              <InputField label={t("form.price").replace("{price}", price.toLocaleString())}>
                 <PriceSlider value={price} onChange={setPrice} disabled={isLoading} />
               </InputField>
 
-              <InputField label="シミュレーション精度" htmlFor="market-size-override">
+              <InputField label={t("form.simulationAccuracy")} htmlFor="market-size-override">
                 <select
                   id="market-size-override"
                   value={marketSize}
@@ -2032,9 +2123,9 @@ function SimulationForm({
                   disabled={isLoading}
                   className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  <option value="small">小（500エージェント）</option>
-                  <option value="medium">中（1,000エージェント）</option>
-                  <option value="large">大（10,000エージェント）</option>
+                  <option value="small">{t("form.marketSize.small2")}</option>
+                  <option value="medium">{t("form.marketSize.medium2")}</option>
+                  <option value="large">{t("form.marketSize.large2")}</option>
                 </select>
               </InputField>
             </div>
@@ -2056,12 +2147,12 @@ function SimulationForm({
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
-              詳細設定
+              {t("form.advancedSettings")}
             </button>
 
             {showAdvanced && (
               <div className="mt-3 space-y-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-                <InputField label="ターゲットユーザー（複数選択可）">
+                <InputField label={t("form.targetUsers")}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 max-h-56 overflow-y-auto rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
                     {TARGET_GROUPS.map((g) => (
                       <div key={g.group} className="col-span-1 sm:col-span-2 mb-1">
@@ -2090,7 +2181,7 @@ function SimulationForm({
                   </div>
                 </InputField>
 
-                <InputField label="カテゴリ" htmlFor="category-select">
+                <InputField label={t("form.category")} htmlFor="category-select">
                   <select
                     id="category-select"
                     value={category}
@@ -2098,13 +2189,13 @@ function SimulationForm({
                     disabled={isLoading}
                     className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    {CATEGORY_OPTIONS.map((o) => (
+                    {getCategoryOptions(t).map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
                 </InputField>
 
-                <InputField label="価格モデル" htmlFor="price-model-select">
+                <InputField label={t("form.priceModel")} htmlFor="price-model-select">
                   <select
                     id="price-model-select"
                     value={priceModel}
@@ -2112,13 +2203,13 @@ function SimulationForm({
                     disabled={isLoading}
                     className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    {PRICE_MODEL_OPTIONS.map((o) => (
+                    {getPriceModelOptions(t).map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
                 </InputField>
 
-                <InputField label="競合の存在" htmlFor="competition-select">
+                <InputField label={t("form.competition")} htmlFor="competition-select">
                   <select
                     id="competition-select"
                     value={competition}
@@ -2126,7 +2217,7 @@ function SimulationForm({
                     disabled={isLoading}
                     className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    {COMPETITION_OPTIONS.map((o) => (
+                    {getCompetitionOptions(t).map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
@@ -2145,14 +2236,14 @@ function SimulationForm({
             {simLoading ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                シミュレーション実行中
+                {t("form.simulationRunning")}
               </span>
-            ) : inferredParams ? "パラメータを変更して再実行" : "シミュレーション実行"}
+            ) : inferredParams ? t("form.reSimulate") : t("form.simulate")}
           </button>
         </form>
       )}
 
-      {simLoading && <LoadingSpinner message="シミュレーション実行中" />}
+      {simLoading && <LoadingSpinner message={t("form.simulationRunning")} />}
 
       {errorInfo && (
         <ErrorAlert
@@ -2168,6 +2259,7 @@ function SimulationForm({
 // ---------- Persona God's View ----------
 
 function FunnelBadge({ stage }: { stage: number }) {
+  const { t } = useI18n();
   return (
     <span
       className="inline-block rounded-full px-2 py-0.5 text-xs font-medium"
@@ -2176,12 +2268,14 @@ function FunnelBadge({ stage }: { stage: number }) {
         color: FUNNEL_COLORS[stage] ?? "#6b7280",
       }}
     >
-      {FUNNEL_LABELS[stage] ?? `Stage ${stage}`}
+      {getFunnelLabels(t)[stage] ?? `Stage ${stage}`}
     </span>
   );
 }
 
 function FunnelStackBar({ distribution, total }: { distribution: Record<string, number>; total: number }) {
+  const { t } = useI18n();
+  const funnelLabels = getFunnelLabels(t);
   if (total === 0) return null;
   return (
     <div className="flex h-6 w-full rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
@@ -2194,7 +2288,7 @@ function FunnelStackBar({ distribution, total }: { distribution: Record<string, 
             key={key}
             className="relative group flex items-center justify-center text-[10px] font-medium text-white transition-all"
             style={{ width: `${pct}%`, backgroundColor: FUNNEL_COLORS[i] }}
-            title={`${FUNNEL_LABELS[i]}: ${count.toLocaleString()}人 (${pct.toFixed(1)}%)`}
+            title={`${funnelLabels[i]}: ${count.toLocaleString()}${t("misc.people")} (${pct.toFixed(1)}%)`}
           >
             {pct > 8 && <span>{count.toLocaleString()}</span>}
           </div>
@@ -2205,6 +2299,7 @@ function FunnelStackBar({ distribution, total }: { distribution: Record<string, 
 }
 
 function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; chartColors: ChartColors }) {
+  const { t } = useI18n();
   const numSteps = result?.config?.num_steps ?? 90;
   const sf = result?.config?.scale_factor ?? 1;
   const [currentDay, setCurrentDay] = useState(numSteps);
@@ -2294,14 +2389,16 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
       const considerationRate = total > 0 ? dist.consideration / total : 0;
       const awarenessRate = total > 0 ? (total - dist.unaware) / total : 0;
       const insights: string[] = [];
-      if (adoptionRate > 0.5) insights.push(`採用率${(adoptionRate * 100).toFixed(0)}%と高く、製品との親和性が高い`);
-      else if (adoptionRate > 0.2) insights.push(`採用率${(adoptionRate * 100).toFixed(0)}%。まだ伸びしろがある`);
-      else if (adoptionRate > 0) insights.push(`採用率${(adoptionRate * 100).toFixed(0)}%と低い。価格やメッセージングの見直しが必要か`);
-      else if (awarenessRate > 0.3) insights.push(`認知はあるが採用に至っていない。検討フェーズでの離脱要因を分析すべき`);
-      else insights.push(`認知率${(awarenessRate * 100).toFixed(0)}%。リーチが不足している可能性`);
-      if (considerationRate > 0.15 && adoptionRate < 0.1) insights.push("検討中が多いが採用が少ない → 価格・不安要因がボトルネックの可能性");
-      if (avgAdoptionDay !== null && avgAdoptionDay < numSteps * 0.3) insights.push(`平均採用日がDay ${Math.round(avgAdoptionDay)}と早期。口コミの起点になりうる`);
-      return { rogersType, label: ROGERS_LABELS[rogersType] ?? rogersType, color: ROGERS_COLORS[rogersType as keyof typeof ROGERS_COLORS] ?? "#6b7280", total, dist, adoptionRate, avgAdoptionDay, considerationRate, awarenessRate, insights };
+      const pct = (v: number) => (v * 100).toFixed(0);
+      if (adoptionRate > 0.5) insights.push(t("insight.highAdoption").replace("{pct}", pct(adoptionRate)));
+      else if (adoptionRate > 0.2) insights.push(t("insight.mediumAdoption").replace("{pct}", pct(adoptionRate)));
+      else if (adoptionRate > 0) insights.push(t("insight.lowAdoption").replace("{pct}", pct(adoptionRate)));
+      else if (awarenessRate > 0.3) insights.push(t("insight.awareButNotAdopted"));
+      else insights.push(t("insight.lowReach").replace("{pct}", pct(awarenessRate)));
+      if (considerationRate > 0.15 && adoptionRate < 0.1) insights.push(t("insight.considerationBottleneck"));
+      if (avgAdoptionDay !== null && avgAdoptionDay < numSteps * 0.3) insights.push(t("insight.earlyAdopter").replace("{day}", String(Math.round(avgAdoptionDay))));
+      const rogersLabels = getRogersLabels(t);
+      return { rogersType, label: rogersLabels[rogersType] ?? rogersType, color: ROGERS_COLORS[rogersType as keyof typeof ROGERS_COLORS] ?? "#6b7280", total, dist, adoptionRate, avgAdoptionDay, considerationRate, awarenessRate, insights };
     }).filter((x): x is NonNullable<typeof x> => x !== null);
   }, [agents, numSteps]);
 
@@ -2345,7 +2442,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
         <div className="flex items-center gap-3 sm:gap-4 mb-3">
           <button
             onClick={isPlaying ? () => setIsPlaying(false) : handlePlay}
-            aria-label={isPlaying ? "一時停止" : "再生"}
+            aria-label={isPlaying ? t("persona.pause") : t("persona.play")}
             className="flex items-center justify-center h-9 w-9 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors shrink-0"
           >
             {isPlaying ? (
@@ -2362,7 +2459,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
               max={numSteps}
               value={currentDay}
               onChange={(e) => { setIsPlaying(false); setCurrentDay(Number(e.target.value)); }}
-              aria-label="タイムラインスライダー"
+              aria-label={t("persona.timelineSlider")}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600 bg-zinc-200 dark:bg-zinc-700"
             />
             <div className="flex justify-between text-[10px] text-zinc-400 mt-1 px-0.5">
@@ -2375,13 +2472,13 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
 
           <div className="text-center shrink-0 w-16 sm:w-20">
             <div className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400 leading-tight">{currentDay}</div>
-            <div className="text-[10px] text-zinc-500">/ {numSteps} 日目</div>
+            <div className="text-[10px] text-zinc-500">{t("persona.currentDayDisplay").replace("{total}", String(numSteps))}</div>
           </div>
         </div>
 
         {/* Speed control */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-zinc-500">
-          <span>速度:</span>
+          <span>{t("persona.speed")}</span>
           {[{ label: "0.5x", ms: 200 }, { label: "1x", ms: 100 }, { label: "2x", ms: 50 }, { label: "4x", ms: 25 }].map((s) => (
             <button
               key={s.label}
@@ -2399,7 +2496,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
             onClick={() => { setIsPlaying(false); setCurrentDay(1); }}
             className="ml-auto px-2 py-0.5 rounded text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
-            リセット
+            {t("persona.reset")}
           </button>
         </div>
       </div>
@@ -2407,7 +2504,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
       {/* Adoption Line Chart synced with timeline */}
       {result.cumulative_adoption && (
         <div className="rounded-lg border border-zinc-200 bg-white p-3 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900" data-chart-id="adoption-timeline">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">採用推移（累積 / 日次）</h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">{t("persona.adoptionTimeline")}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart
               data={result.cumulative_adoption.map((cum, i) => ({
@@ -2422,24 +2519,24 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
                 dataKey="day"
                 tick={{ fontSize: 11, fill: chartColors.axis }}
                 tickFormatter={(v: number) => `${v}`}
-                label={{ value: "日", position: "insideBottomRight", offset: -5, fontSize: 11, fill: chartColors.axis }}
+                label={{ value: t("persona.axis.day"), position: "insideBottomRight", offset: -5, fontSize: 11, fill: chartColors.axis }}
               />
               <YAxis
                 yAxisId="left"
                 tick={{ fontSize: 11, fill: chartColors.axis }}
-                label={{ value: "累積採用数", angle: -90, position: "insideLeft", offset: 0, fontSize: 11, fill: chartColors.axis }}
+                label={{ value: t("persona.axis.cumulativeAdoption"), angle: -90, position: "insideLeft", offset: 0, fontSize: 11, fill: chartColors.axis }}
               />
               <YAxis
                 yAxisId="right"
                 orientation="right"
                 tick={{ fontSize: 11, fill: chartColors.axis }}
-                label={{ value: "日次採用数", angle: 90, position: "insideRight", offset: 0, fontSize: 11, fill: chartColors.axis }}
+                label={{ value: t("persona.axis.dailyAdoption"), angle: 90, position: "insideRight", offset: 0, fontSize: 11, fill: chartColors.axis }}
               />
               <Tooltip
                 contentStyle={{ backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder }}
                 formatter={(value, name) => [
                   Number(value).toLocaleString(),
-                  name === "cumulative" ? "累積採用" : "日次採用",
+                  name === "cumulative" ? t("persona.legend.cumulative") : t("persona.legend.daily"),
                 ]}
                 labelFormatter={(label) => `Day ${label}`}
               />
@@ -2473,13 +2570,13 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
           </ResponsiveContainer>
           <div className="flex items-center justify-center gap-4 sm:gap-6 mt-2 text-xs text-zinc-500">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-0.5 bg-blue-600 rounded" />累積採用
+              <span className="inline-block w-4 h-0.5 bg-blue-600 rounded" />{t("persona.legend.cumulative")}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-0.5 bg-green-500 rounded" style={{ borderTop: "1.5px dashed #22c55e", background: "none" }} />日次採用
+              <span className="inline-block w-4 h-0.5 bg-green-500 rounded" style={{ borderTop: "1.5px dashed #22c55e", background: "none" }} />{t("persona.legend.daily")}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-4 h-0.5 bg-red-500 rounded" />現在位置
+              <span className="inline-block w-4 h-0.5 bg-red-500 rounded" />{t("persona.legend.currentPosition")}
             </span>
           </div>
         </div>
@@ -2487,7 +2584,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
 
       {/* Funnel Distribution Bar */}
       <div className="rounded-lg border border-zinc-200 bg-white p-3 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">ファネル分布（Day {currentDay}）</h3>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">{t("persona.funnelDistribution").replace("{day}", String(currentDay))}</h3>
         <FunnelStackBar distribution={funnelDist} total={agents.length} />
         <div className="flex justify-between mt-2 overflow-x-auto gap-1">
           {FUNNEL_KEYS.map((key, i) => (
@@ -2501,17 +2598,17 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
 
       {/* Overview Stats */}
       <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard label="推定TAM" value={(result.config.tam ?? 0).toLocaleString()} unit="人" sub={`${result.config.num_agents?.toLocaleString() ?? "—"}エージェント`} />
-        <SummaryCard label="検討中" value={Math.round(funnelDist.consideration * sf).toLocaleString()} unit="人" accent="#f59e0b" sub={`${funnelDist.consideration}エージェント`} />
-        <SummaryCard label="採用済み" value={Math.round(funnelDist.adopted * sf).toLocaleString()} unit="人" accent="#22c55e" sub={`${funnelDist.adopted}エージェント`} />
-        <SummaryCard label="本日の新規採用" value={Math.round(newAdoptersToday * sf).toLocaleString()} unit="人" accent="#2563eb" sub={`${newAdoptersToday}エージェント`} />
+        <SummaryCard label={t("summary.estimatedTam")} value={(result.config.tam ?? 0).toLocaleString()} unit={t("summary.unit.people")} sub={`${result.config.num_agents?.toLocaleString() ?? "—"}${t("summary.unit.agents")}`} />
+        <SummaryCard label={t("persona.considering")} value={Math.round(funnelDist.consideration * sf).toLocaleString()} unit={t("summary.unit.people")} accent="#f59e0b" sub={`${funnelDist.consideration}${t("summary.unit.agents")}`} />
+        <SummaryCard label={t("persona.adoptedLabel")} value={Math.round(funnelDist.adopted * sf).toLocaleString()} unit={t("summary.unit.people")} accent="#22c55e" sub={`${funnelDist.adopted}${t("summary.unit.agents")}`} />
+        <SummaryCard label={t("persona.newAdoptersToday")} value={Math.round(newAdoptersToday * sf).toLocaleString()} unit={t("summary.unit.people")} accent="#2563eb" sub={`${newAdoptersToday}${t("summary.unit.agents")}`} />
       </div>
-      <p className="text-[10px] text-zinc-500 dark:text-zinc-400">※ 1エージェント ≈ 同属性{Math.round(sf).toLocaleString()}人を代表</p>
+      <p className="text-[10px] text-zinc-500 dark:text-zinc-400">{t("persona.agentRepresents").replace("{count}", Math.round(sf).toLocaleString())}</p>
 
       {/* Funnel Stacked Area Chart over time */}
       {result.daily_funnel_snapshot && (
         <div className="rounded-lg border border-zinc-200 bg-white p-3 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900" data-chart-id="funnel-timeline">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">ファネル推移</h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">{t("persona.funnelTimeline")}</h3>
           <ResponsiveContainer width="100%" height={250}>
             <AreaChart
               data={result.daily_funnel_snapshot.map((d, i) => ({
@@ -2524,8 +2621,9 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
               <YAxis tick={{ fontSize: 10, fill: chartColors.axis }} />
               <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder }} />
               <Legend formatter={(v) => {
+                const funnelLabels = getFunnelLabels(t);
                 const idx = FUNNEL_KEYS.indexOf(v as typeof FUNNEL_KEYS[number]);
-                return idx >= 0 ? FUNNEL_LABELS[idx] : v;
+                return idx >= 0 ? funnelLabels[idx] : v;
               }} />
               {[...FUNNEL_KEYS].reverse().map((key, ri) => {
                 const i = FUNNEL_KEYS.length - 1 - ri;
@@ -2548,7 +2646,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
 
       {/* Segment-level Funnel Analysis — Card Grid */}
       <div className="rounded-lg border border-zinc-200 bg-white p-3 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4">セグメント別ファネル分析（Day {currentDay}）</h3>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4">{t("persona.segmentFunnelAnalysis").replace("{day}", String(currentDay))}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {segmentAnalysis.map((seg) => (
             <button
@@ -2563,11 +2661,11 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
                 </span>
               </div>
               <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{(seg.adoptionRate * 100).toFixed(1)}%</div>
-              <div className="text-[10px] text-zinc-500">採用率</div>
+              <div className="text-[10px] text-zinc-500">{t("persona.adoptionRate")}</div>
               <div className="mt-2">
                 <FunnelStackBar distribution={seg.dist} total={seg.total} />
               </div>
-              <div className="text-[10px] text-zinc-500 mt-1.5">{Math.round(seg.total * sf).toLocaleString()}人</div>
+              <div className="text-[10px] text-zinc-500 mt-1.5">{Math.round(seg.total * sf).toLocaleString()}{t("misc.people")}</div>
               {seg.insights.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-1">
                   {seg.insights.map((insight, idx) => (
@@ -2600,7 +2698,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
                 type="button"
                 onClick={() => setSelectedSegment(null)}
                 className="absolute top-3 right-3 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-                aria-label="閉じる"
+                aria-label={t("report.close")}
               >
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="4" x2="16" y2="16" /><line x1="16" y1="4" x2="4" y2="16" /></svg>
               </button>
@@ -2608,7 +2706,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
                 <span className="inline-block rounded-full px-2.5 py-0.5 text-xs text-white font-medium" style={{ backgroundColor: seg.color }}>
                   {seg.label}
                 </span>
-                <span className="text-sm text-zinc-500">{Math.round(seg.total * sf).toLocaleString()}人</span>
+                <span className="text-sm text-zinc-500">{Math.round(seg.total * sf).toLocaleString()}{t("misc.people")}</span>
               </div>
               <FunnelStackBar distribution={seg.dist} total={seg.total} />
               <div className="flex justify-between mt-2 mb-3">
@@ -2621,21 +2719,21 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
               </div>
               <div className="grid grid-cols-3 gap-3 text-sm mb-4">
                 <div className="text-center rounded-lg bg-zinc-50 dark:bg-zinc-800 p-2">
-                  <div className="text-zinc-500 text-xs">採用率</div>
+                  <div className="text-zinc-500 text-xs">{t("persona.adoptionRate")}</div>
                   <div className="font-bold text-zinc-900 dark:text-zinc-100">{(seg.adoptionRate * 100).toFixed(1)}%</div>
                 </div>
                 <div className="text-center rounded-lg bg-zinc-50 dark:bg-zinc-800 p-2">
-                  <div className="text-zinc-500 text-xs">認知率</div>
+                  <div className="text-zinc-500 text-xs">{t("persona.awarenessRate")}</div>
                   <div className="font-bold text-zinc-900 dark:text-zinc-100">{(seg.awarenessRate * 100).toFixed(1)}%</div>
                 </div>
                 <div className="text-center rounded-lg bg-zinc-50 dark:bg-zinc-800 p-2">
-                  <div className="text-zinc-500 text-xs">平均採用日</div>
+                  <div className="text-zinc-500 text-xs">{t("persona.avgAdoptionDay")}</div>
                   <div className="font-bold text-zinc-900 dark:text-zinc-100">{seg.avgAdoptionDay !== null ? `Day ${Math.round(seg.avgAdoptionDay)}` : "-"}</div>
                 </div>
               </div>
               {seg.insights.length > 0 && (
                 <div className="space-y-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-3">
-                  <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">インサイト</div>
+                  <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">{t("persona.insights")}</div>
                   {seg.insights.map((insight, idx) => (
                     <div key={idx} className="flex items-start gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
                       <span className="text-amber-500 shrink-0 mt-0.5">*</span>
@@ -2652,7 +2750,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
       {/* Per-segment adoption rate over time */}
       {segmentAdoptionTimeSeries.length > 0 && (
         <div className="rounded-lg border border-zinc-200 bg-white p-3 sm:p-4 dark:border-zinc-800 dark:bg-zinc-900" data-chart-id="segment-adoption">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">セグメント別 採用率推移</h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">{t("persona.segmentAdoptionRate")}</h3>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={segmentAdoptionTimeSeries}>
               <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
@@ -2663,7 +2761,7 @@ function PersonaTab({ result, chartColors }: { result: SimulateResponse | null; 
                 formatter={(value) => [`${Number(value).toFixed(1)}%`, ""]}
                 labelFormatter={(label) => `Day ${label}`}
               />
-              <Legend formatter={(v) => ROGERS_LABELS[v] ?? v} />
+              <Legend formatter={(v) => getRogersLabels(t)[v] ?? v} />
               {ROGERS_KEYS.map((key) => (
                 <Line
                   key={key}
@@ -2712,6 +2810,7 @@ function EventCard({
   onRemove: () => void;
   disabled: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className={`rounded-lg border p-3 transition-colors ${
@@ -2728,7 +2827,7 @@ function EventCard({
           className={`mt-1 shrink-0 w-8 h-5 rounded-full transition-colors relative ${
             event.enabled ? "bg-blue-600" : "bg-zinc-300 dark:bg-zinc-600"
           } disabled:opacity-50`}
-          aria-label={event.enabled ? "無効にする" : "有効にする"}
+          aria-label={event.enabled ? t("whatif.disable") : t("whatif.enable")}
         >
           <span
             className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform shadow-sm ${
@@ -2743,12 +2842,12 @@ function EventCard({
             disabled={disabled}
             rows={2}
             maxLength={500}
-            placeholder="例: 競合他社が30%値下げした"
+            placeholder={t("whatif.placeholder")}
             className={`${inputClass} text-sm disabled:opacity-50`}
           />
           <div className="mt-2 flex gap-2">
             <div className="flex items-center gap-1">
-              <label className="text-xs text-zinc-500">開始日:</label>
+              <label className="text-xs text-zinc-500">{t("whatif.startDay")}</label>
               <input
                 type="number"
                 min={1}
@@ -2762,7 +2861,7 @@ function EventCard({
               />
             </div>
             <div className="flex items-center gap-1">
-              <label className="text-xs text-zinc-500">終了日:</label>
+              <label className="text-xs text-zinc-500">{t("whatif.endDay")}</label>
               <input
                 type="number"
                 min={1}
@@ -2785,7 +2884,7 @@ function EventCard({
           onClick={onRemove}
           disabled={disabled}
           className="shrink-0 mt-1 text-zinc-400 hover:text-red-500 transition-colors disabled:opacity-50"
-          aria-label="削除"
+          aria-label={t("whatif.delete")}
         >
           <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
@@ -2797,29 +2896,30 @@ function EventCard({
 }
 
 function WhatIfDiffSummary({ diff }: { diff: WhatIfDiff }) {
+  const { t } = useI18n();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="text-xs text-zinc-500">採用者数の変化</p>
+        <p className="text-xs text-zinc-500">{t("whatif.adoptersChange")}</p>
         <div className="mt-1">
-          <DiffBadge delta={diff.total_adopters_delta} pct={diff.total_adopters_pct} unit="人" />
+          <DiffBadge delta={diff.total_adopters_delta} pct={diff.total_adopters_pct} unit={t("misc.people")} />
         </div>
       </div>
       <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="text-xs text-zinc-500">累積売上の変化</p>
+        <p className="text-xs text-zinc-500">{t("whatif.revenueChange")}</p>
         <div className="mt-1">
-          <DiffBadge delta={diff.total_revenue_delta} pct={diff.total_revenue_pct} unit="円" />
+          <DiffBadge delta={diff.total_revenue_delta} pct={diff.total_revenue_pct} unit={t("misc.yen")} />
         </div>
       </div>
       <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="text-xs text-zinc-500">採用率の変化</p>
+        <p className="text-xs text-zinc-500">{t("whatif.adoptionRateChange")}</p>
         <div className="mt-1">
           {diff.adoption_rate_delta !== 0 ? (
             <span className={`text-sm font-medium ${diff.adoption_rate_delta > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
               {diff.adoption_rate_delta > 0 ? "+" : ""}{(diff.adoption_rate_delta * 100).toFixed(2)}%
             </span>
           ) : (
-            <span className="text-sm text-zinc-400">変化なし</span>
+            <span className="text-sm text-zinc-400">{t("whatif.noChange")}</span>
           )}
         </div>
       </div>
@@ -2925,6 +3025,9 @@ function WhatIfPanel({
     }));
   }, [whatIfResult]);
 
+  const { t } = useI18n();
+  const WHATIF_PRESETS = getWhatIfPresets(t);
+
   if (!lastRequest) return null;
 
   const enabledCount = events.filter((e) => e.enabled).length;
@@ -2939,16 +3042,16 @@ function WhatIfPanel({
       >
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-            What-If 分析
+            {t("whatif.title")}
           </span>
           {events.length > 0 && (
             <span className="inline-flex items-center rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">
-              {enabledCount}/{events.length} イベント
+              {enabledCount}/{events.length} {t("whatif.events")}
             </span>
           )}
           {isDirty && whatIfResult && (
             <span className="inline-flex items-center rounded-full bg-yellow-200 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200">
-              再実行が必要
+              {t("whatif.needsRerun")}
             </span>
           )}
         </div>
@@ -2986,7 +3089,7 @@ function WhatIfPanel({
               disabled={events.length >= 10 || loading}
               className="rounded-md border border-dashed border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 transition-colors disabled:opacity-40"
             >
-              + カスタムイベント
+              {t("whatif.addCustom")}
             </button>
             <div className="relative group">
               <button
@@ -2994,7 +3097,7 @@ function WhatIfPanel({
                 disabled={events.length >= 10 || loading}
                 className="rounded-md border border-dashed border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 hover:border-amber-400 dark:border-amber-700 dark:text-amber-400 transition-colors disabled:opacity-40 peer"
               >
-                + プリセットから追加 ▾
+                {t("whatif.addPreset")}
               </button>
               <div className="absolute left-0 top-full mt-1 z-10 hidden group-hover:block hover:block w-56 rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
                 {WHATIF_PRESETS.map((preset) => (
@@ -3033,10 +3136,10 @@ function WhatIfPanel({
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                What-If シミュレーション中
+                {t("whatif.running")}
               </span>
             ) : (
-              `What-If シミュレーション実行${isDirty && whatIfResult ? "（変更あり）" : ""}`
+              isDirty && whatIfResult ? t("whatif.runChanged") : t("whatif.run")
             )}
           </button>
 
@@ -3044,7 +3147,7 @@ function WhatIfPanel({
           {whatIfResult?.interpretation.fallback_used && (
             <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-800 dark:bg-yellow-950">
               <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                AIによる解釈ができなかったため、パラメータ変化なしで実行しました。ANTHROPIC_API_KEYを設定してください。
+                {t("whatif.fallbackWarning")}
               </p>
             </div>
           )}
@@ -3055,7 +3158,7 @@ function WhatIfPanel({
               {/* Interpretation summary */}
               {whatIfResult.interpretation.delta.reasoning && (
                 <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 dark:border-purple-800 dark:bg-purple-950">
-                  <p className="text-xs font-medium text-purple-900 dark:text-purple-100 mb-1">AIの解釈</p>
+                  <p className="text-xs font-medium text-purple-900 dark:text-purple-100 mb-1">{t("whatif.aiInterpretation")}</p>
                   <p className="text-xs text-purple-700 dark:text-purple-300">{whatIfResult.interpretation.delta.reasoning}</p>
                 </div>
               )}
@@ -3067,7 +3170,7 @@ function WhatIfPanel({
               {chartData && (
                 <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900" data-chart-id="whatif-comparison">
                   <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
-                    累積採用者数の比較
+                    {t("whatif.cumulativeComparison")}
                   </h4>
                   <ResponsiveContainer width="100%" height={240}>
                     <LineChart data={chartData}>
@@ -3076,7 +3179,7 @@ function WhatIfPanel({
                       <YAxis tick={{ fontSize: 11, fill: chartColors.axis }} tickFormatter={(v) => Number(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
                       <Tooltip contentStyle={{ backgroundColor: chartColors.tooltipBg, borderColor: chartColors.tooltipBorder }} formatter={(v) => typeof v === "number" ? v.toLocaleString() : String(v)} />
                       <Legend />
-                      <Line type="monotone" dataKey="baseline" name="ベースライン" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="baseline" name={t("whatif.baseline")} stroke="#3b82f6" strokeWidth={2} dot={false} />
                       <Line type="monotone" dataKey="whatif" name="What-If" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="5 5" />
                     </LineChart>
                   </ResponsiveContainer>
@@ -3092,20 +3195,24 @@ function WhatIfPanel({
 
 // ---------- Empty / Loading Placeholder ----------
 
-const TIPS = [
-  { icon: "💡", text: "Bass拡散モデルは、口コミ（模倣）とメディア（革新）の2つの力で普及をモデル化します" },
-  { icon: "🎯", text: "JTBD（Jobs-to-be-Done）は顧客が「片付けたい用事」に着目するフレームワークです" },
-  { icon: "📊", text: "p値（革新係数）が高いほど、広告やメディアによる初期採用が加速します" },
-  { icon: "🔗", text: "q値（模倣係数）が高いほど、口コミやSNSによる普及が強くなります" },
-  { icon: "🏢", text: "TAM（Total Addressable Market）は理論上の最大市場規模を示します" },
-  { icon: "⚡", text: "エージェントはそれぞれ異なる属性を持ち、自律的に採用を判断します" },
-  { icon: "🌐", text: "ソーシャルネットワークの構造が情報伝播のスピードに大きく影響します" },
-  { icon: "📈", text: "What-If分析で、価格変更やイベントの影響をシミュレーションできます" },
-  { icon: "🧠", text: "AIがサービス説明からJTBD・ターゲット層・価格帯を自動推論します" },
-  { icon: "🔄", text: "シミュレーションは確率的モデルなので、同じ条件でも毎回わずかに異なる結果になります" },
-];
+function getTips(t: (key: string) => string) {
+  return [
+    { icon: "💡", text: t("tip.bass") },
+    { icon: "🎯", text: t("tip.jtbd") },
+    { icon: "📊", text: t("tip.pValue") },
+    { icon: "🔗", text: t("tip.qValue") },
+    { icon: "🏢", text: t("tip.tam") },
+    { icon: "⚡", text: t("tip.agents") },
+    { icon: "🌐", text: t("tip.network") },
+    { icon: "📈", text: t("tip.whatif") },
+    { icon: "🧠", text: t("tip.aiInference") },
+    { icon: "🔄", text: t("tip.stochastic") },
+  ];
+}
 
 function EmptyPlaceholder({ isLoading }: { isLoading: boolean }) {
+  const { t } = useI18n();
+  const TIPS = getTips(t);
   const [tipIndex, setTipIndex] = useState(0);
   const [fade, setFade] = useState(true);
 
@@ -3118,7 +3225,7 @@ function EmptyPlaceholder({ isLoading }: { isLoading: boolean }) {
       }, 300);
     }, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [TIPS.length]);
 
   const tip = TIPS[tipIndex];
 
@@ -3131,7 +3238,7 @@ function EmptyPlaceholder({ isLoading }: { isLoading: boolean }) {
         </div>
         <div className="text-center max-w-md">
           <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300 animate-pulse-text loading-dots mb-3">
-            AIがサービスを分析しています
+            {t("form.aiAnalyzingService")}
           </p>
           <div
             className="transition-all duration-300 ease-in-out"
@@ -3160,7 +3267,7 @@ function EmptyPlaceholder({ isLoading }: { isLoading: boolean }) {
       </div>
       <div className="text-center max-w-sm">
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">
-          サービスの説明を入力してAI分析を実行してください
+          {t("placeholder.enterDescription")}
         </p>
         <div
           className="transition-all duration-300 ease-in-out"
@@ -3178,9 +3285,25 @@ function EmptyPlaceholder({ isLoading }: { isLoading: boolean }) {
 
 // ---------- Main Page ----------
 
+function LanguageToggle() {
+  const { locale, setLocale } = useI18n();
+  return (
+    <button
+      type="button"
+      onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
+      className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+      aria-label="Toggle language"
+    >
+      {locale === "ja" ? "EN" : "JA"}
+    </button>
+  );
+}
+
 export default function Home() {
   const { mode, setTheme, isDark } = useTheme();
+  const { t } = useI18n();
   const chartColors = isDark ? CHART_COLORS_DARK : CHART_COLORS_LIGHT;
+  const FOOTER_CAVEATS = useMemo(() => getFooterCaveats(t), [t]);
   const [simulationResult, setSimulationResult] =
     useState<SimulateResponse | null>(null);
   const [lastSimRequest, setLastSimRequest] = useState<SimulateRequest | null>(null);
@@ -3190,6 +3313,9 @@ export default function Home() {
   const [whatIfResultForReport, setWhatIfResultForReport] = useState<WhatIfResponse | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const [capturing, setCapturing] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatInferredParams, setChatInferredParams] = useState<AutoResponse["inferred_params"] | null>(null);
+  const [chatDescription, setChatDescription] = useState("");
 
   const handleDownloadImage = useCallback(async () => {
     const el = resultsRef.current;
@@ -3288,19 +3414,21 @@ export default function Home() {
       <header className="shrink-0 border-b border-zinc-200 bg-white px-4 sm:px-8 py-3 sm:py-4 dark:border-zinc-800 dark:bg-zinc-900 flex items-center justify-between">
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            Value Simulator
+            {t("header.title")}
           </h1>
           <p className="text-xs sm:text-sm text-zinc-500">
-            Bass拡散モデルによる市場採用シミュレーション
+            {t("header.subtitle")}
           </p>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <LanguageToggle />
         {simulationResult && !reportOpen && (
-          <div className="flex items-center gap-2 shrink-0">
+          <>
             <button
               type="button"
               onClick={handleDownloadImage}
               disabled={capturing}
-              title="画像保存"
+              title={t("header.saveImage")}
               className="p-2 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
             >
               {capturing ? (
@@ -3326,18 +3454,19 @@ export default function Home() {
                 <line x1="16" y1="13" x2="8" y2="13" />
                 <line x1="16" y1="17" x2="8" y2="17" />
               </svg>
-              <span className="hidden sm:inline">報告書を作成</span>
-              <span className="sm:hidden">報告書</span>
+              <span className="hidden sm:inline">{t("header.createReport")}</span>
+              <span className="sm:hidden">{t("header.createReportShort")}</span>
             </button>
-          </div>
+          </>
         )}
+        </div>
       </header>
 
       <main className="flex-1 lg:overflow-hidden lg:min-h-0">
         {/* Responsive: stack on mobile, side-by-side on desktop with independent scroll */}
         <div className="flex flex-col lg:flex-row lg:h-full">
           <aside className="w-full lg:w-96 shrink-0 p-4 sm:p-6 lg:p-8 lg:overflow-y-auto lg:border-r lg:border-zinc-200 lg:dark:border-zinc-800">
-            <SimulationForm onResult={handleSimulationResult} onRequestCapture={handleRequestCapture} onLoadingChange={setFormLoading} />
+            <SimulationForm onResult={handleSimulationResult} onRequestCapture={handleRequestCapture} onLoadingChange={setFormLoading} onInferredParams={setChatInferredParams} onDescriptionChange={setChatDescription} />
           </aside>
           <section className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 lg:overflow-y-auto">
             {!simulationResult && (
@@ -3363,7 +3492,7 @@ export default function Home() {
             )}
             {/* Footer inside right column on desktop */}
             <div className="hidden lg:block mt-8 border-t border-zinc-200 bg-zinc-50 -mx-8 px-8 py-4 dark:border-zinc-800 dark:bg-zinc-950">
-              <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-3">シミュレーションの前提・注意事項</h3>
+              <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-3">{t("caveat.heading")}</h3>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
                 {FOOTER_CAVEATS.map((item) => (
                   <details key={item.title} className="group rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
@@ -3385,7 +3514,7 @@ export default function Home() {
 
       {/* Footer for mobile only (on desktop it's inside the right column) */}
       <footer className="lg:hidden shrink-0 border-t border-zinc-200 bg-zinc-50 px-4 sm:px-8 py-4 dark:border-zinc-800 dark:bg-zinc-950">
-        <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-3">シミュレーションの前提・注意事項</h3>
+        <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-3">{t("caveat.heading")}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {FOOTER_CAVEATS.map((item) => (
             <details key={item.title} className="group rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
@@ -3413,6 +3542,20 @@ export default function Home() {
           onClose={() => setReportOpen(false)}
         />
       )}
+
+      {/* AI Chat */}
+      {!chatOpen && <ChatFab onClick={() => setChatOpen(true)} />}
+      <ChatPanel
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        context={{
+          simulationResult,
+          lastRequest: lastSimRequest,
+          inferredParams: chatInferredParams,
+          whatIfResult: whatIfResultForReport,
+          description: chatDescription,
+        }}
+      />
     </div>
   );
 }

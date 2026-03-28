@@ -868,3 +868,254 @@ async def generate_report(req: ReportRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# --- Chat Assistant Endpoint ---
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+class ChatRequest(BaseModel):
+    message: str
+    locale: str = "ja"
+    history: list[ChatMessage] = Field(default_factory=list)
+    # Context from frontend state
+    simulation_result: dict | None = None
+    user_input: dict | None = None
+    inferred_params: dict | None = None
+    whatif_result: dict | None = None
+
+class ChatResponse(BaseModel):
+    reply: str
+    category: str  # which category the router determined
+
+CHAT_CATEGORIES = {
+    "simulation_results": "シミュレーション結果に関する質問（デフォルト。迷ったらこれを選ぶ）",
+    "user_input": "ユーザーが入力した設定やパラメータに関する質問",
+    "tool_usage": "このツールの使い方やUIの操作方法に関する質問",
+    "logic": "シミュレーションのロジック・アルゴリズム・モデルに関する質問",
+}
+
+
+def _build_category_context(category: str, req: ChatRequest) -> str:
+    """Build context string based on the routed category."""
+    parts: list[str] = []
+
+    if category == "simulation_results" and req.simulation_result:
+        sr = req.simulation_result
+        summary = sr.get("summary", {})
+        config = sr.get("config", {})
+        parts.append(f"""## シミュレーション結果
+- サービス名: {sr.get('service_name', '不明')}
+- エージェント数: {config.get('num_agents', '?')}
+- シミュレーション日数: {config.get('num_steps', '?')}日
+- TAM: {config.get('tam', '?')}
+- スケールファクター: {config.get('scale_factor', '?')}
+- Bass係数: p={config.get('p', '?')}, q={config.get('q', '?')}
+- 総採用者数: {summary.get('total_adopters', '?')}
+- 累計採用者数: {summary.get('total_ever_adopted', '?')}
+- 離脱者数: {summary.get('total_churned', '?')}
+- 離脱率: {summary.get('churn_rate', '?')}
+- ピーク日次採用: {summary.get('peak_daily', '?')}
+- 採用率: {summary.get('adoption_rate', '?')}
+- ODIスコア: {sr.get('odi_score', '?')} ({sr.get('odi_label', '?')})""")
+        if sr.get("daily_revenue"):
+            rev = sr["daily_revenue"]
+            cum_rev = sr.get("cumulative_revenue", [])
+            parts.append(f"- 最終日累積売上: {cum_rev[-1] if cum_rev else '?'}")
+        if sr.get("rogers_breakdown"):
+            rb = sr["rogers_breakdown"]
+            parts.append(f"- ロジャーズ分類（最終日）: イノベーター={rb.get('innovator',['?'])[-1] if rb.get('innovator') else '?'}, "
+                         f"アーリーアダプター={rb.get('early_adopter',['?'])[-1] if rb.get('early_adopter') else '?'}, "
+                         f"アーリーマジョリティ={rb.get('early_majority',['?'])[-1] if rb.get('early_majority') else '?'}, "
+                         f"レイトマジョリティ={rb.get('late_majority',['?'])[-1] if rb.get('late_majority') else '?'}, "
+                         f"ラガード={rb.get('laggard',['?'])[-1] if rb.get('laggard') else '?'}")
+
+    elif category == "user_input" and req.user_input:
+        ui = req.user_input
+        parts.append(f"""## ユーザー入力パラメータ
+- サービス名: {ui.get('service_name', '不明')}
+- サービス説明: {ui.get('description', '未入力')}
+- 価格: {ui.get('price', '?')}円
+- 市場規模: {ui.get('market_size', '?')}
+- ターゲット: {', '.join(ui.get('target', []) or ['未指定'])}
+- カテゴリ: {ui.get('category', '?')}
+- 価格モデル: {ui.get('price_model', '?')}
+- 競合: {ui.get('competition', '?')}
+- シミュレーション期間: {ui.get('period', '?')}
+- TAM: {ui.get('tam', '?')}""")
+        if req.inferred_params:
+            ip = req.inferred_params
+            parts.append(f"""## AI推論パラメータ
+- 推論されたターゲット: {ip.get('target', '?')}
+- カテゴリ: {ip.get('category', '?')}
+- 推奨価格: {ip.get('suggested_price', '?')}円
+- 競合レベル: {ip.get('competition', '?')}
+- TAM推定: {ip.get('tam_estimate', '?')}
+- 推論理由: {ip.get('reasoning', '?')}""")
+
+    elif category == "tool_usage":
+        parts.append("""## Value Simulator 使い方ガイド
+
+### 基本の流れ
+1. 左パネルでサービス説明を入力（日本語OK）
+2. 「AIで分析」ボタンを押すと、AIがパラメータを自動推論
+3. 推論されたパラメータを確認・調整
+4. シミュレーションが自動実行され、右パネルに結果表示
+
+### 結果の見方
+- **サマリー**: 総採用者数、採用率、ピーク日次採用などの概要
+- **ファネル分析**: Unaware→Aware→Interest→Consideration→Adoptedの遷移
+- **エージェント分析**: 個別エージェントの属性・行動分析、ネットワーク可視化
+- **What-Ifシナリオ**: 仮定条件を変えてシミュレーション比較
+- **拡散曲線**: Bass拡散モデルによる日次・累積採用曲線
+
+### 詳細設定
+- 「詳細設定」で価格・ターゲット・カテゴリ等を手動調整可能
+- ロジャーズ分類別の採用推移グラフあり
+- レポート生成ボタンでAI分析レポートをPDF出力可能
+
+### What-Ifシナリオ
+- 「What-If」セクションでシナリオカードを追加
+- 競合参入、価格変更、マーケティング施策等を設定
+- ベースラインとの差分を比較分析""")
+
+    elif category == "logic":
+        parts.append("""## シミュレーションロジック解説
+
+### Bass拡散モデル
+- p（イノベーション係数）: 外部影響（広告等）による採用確率
+- q（模倣係数）: 内部影響（口コミ）による採用確率
+- 日次採用率 = p + q × (累積採用者/市場規模)
+
+### BDI-LLMハイブリッドエージェント
+- 各エージェントはBelief-Desire-Intentionモデルで行動
+- 日常行動はルールベース、複雑判断時のみLLM
+- エージェントはアーキタイプにクラスタリングされコスト最適化
+
+### JTBD（Jobs-to-be-Done）
+- ODI（Opportunity-Driven Innovation）スコアで機会を評価
+- importance（重要度）とsatisfaction（満足度）から算出
+- underserved/served/overservedの3分類
+
+### ロジャーズ普及理論
+- Innovators (2.5%) → Early Adopters (13.5%) → Early Majority (34%) → Late Majority (34%) → Laggards (16%)
+- 各カテゴリで採用しきい値が異なる
+
+### Forces of Progress（Bob Moesta Switch Framework）
+- F1 Push: 現状への不満（採用を促進）
+- F2 Pull: 新ソリューションの魅力（採用を促進）
+- F3 Anxiety: 新ソリューションへの不安（採用を阻害）
+- F4 Habit: 現行動の慣性（採用を阻害）
+- Switch Score = (F1+F2) - (F3+F4) → 0.5超で採用
+
+### ファネルステージ
+0: Unaware → 1: Aware → 2: Interest → 3: Consideration → 4: Adopted
+各ステージ間の遷移確率はエージェント属性とBass係数に依存
+
+### チャーン（離脱）
+- 採用後も一定確率で離脱が発生
+- 離脱率は価格感度・JTBDフィット・競合状況で変動""")
+
+    if category == "simulation_results" and req.whatif_result:
+        wir = req.whatif_result
+        diff = wir.get("diff", {})
+        parts.append(f"""## What-If分析結果
+- 採用者数差分: {diff.get('total_adopters_delta', '?')} ({diff.get('total_adopters_pct', '?')}%)
+- 売上差分: {diff.get('total_revenue_delta', '?')} ({diff.get('total_revenue_pct', '?')}%)
+- 採用率差分: {diff.get('adoption_rate_delta', '?')}""")
+
+    return "\n\n".join(parts) if parts else "（該当するコンテキスト情報はありません）"
+
+
+async def _chat_stream(req: ChatRequest):
+    """Async generator that streams chat response as SSE."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        msg = ("Chat is unavailable because the API key is not configured."
+               if req.locale == "en" else
+               "APIキーが設定されていないため、チャット機能は利用できません。")
+        yield f"data: {{}}\n\n".replace("{}", f'{{"category":"simulation_results"}}').encode()
+        yield f"data: {msg}\n\n".encode()
+        yield b"data: [DONE]\n\n"
+        return
+
+    try:
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+
+        is_en = req.locale == "en"
+
+        # Step 1: Route with Haiku
+        route_prompt = (
+            f"Classify the following user question. Return only the category name.\n"
+            f"Categories: {', '.join(CHAT_CATEGORIES.keys())}\n\n"
+            f"Category descriptions:\n"
+            + "\n".join(f"- {k}: {v}" for k, v in CHAT_CATEGORIES.items())
+            + f"\n\nIMPORTANT: If unsure, always default to 'simulation_results'.\n"
+            + f"\n\nQuestion: {req.message}\n\nCategory name only:"
+        )
+        route_resp = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=20,
+            messages=[{"role": "user", "content": route_prompt}],
+        )
+        category = route_resp.content[0].text.strip().lower() if route_resp.content else "simulation_results"
+        if category not in CHAT_CATEGORIES:
+            category = "simulation_results"
+
+        # Send category as first SSE event (JSON metadata)
+        import json
+        yield f"data: {json.dumps({'category': category})}\n\n".encode()
+
+        # Step 2: Build context and stream with Sonnet
+        context = _build_category_context(category, req)
+
+        lang_instruction = (
+            "You MUST respond entirely in English. Do not use any Japanese."
+            if is_en else
+            "必ず日本語のみで回答してください。英語は使わないでください。"
+        )
+
+        system_prompt = (
+            f"You are the AI assistant for Value Simulator, a market adoption simulator.\n"
+            f"Answer the user's question concisely and accurately based on the context below.\n"
+            f"Keep your response to 2-3 sentences. Avoid verbose explanations or excessive bullet points — focus on the key point.\n"
+            f"Use Markdown formatting for readability.\n"
+            f"CRITICAL: {lang_instruction}\n\n"
+            f"{context}"
+        )
+
+        messages = [{"role": m.role, "content": m.content} for m in req.history[-10:]]
+        messages.append({"role": "user", "content": req.message})
+
+        async with client.messages.stream(
+            model="claude-sonnet-4-6",
+            max_tokens=300,
+            system=system_prompt,
+            messages=messages,
+        ) as stream:
+            async for text in stream.text_stream:
+                escaped = text.replace("\n", "\\n")
+                yield f"data: {escaped}\n\n".encode()
+
+        yield b"data: [DONE]\n\n"
+
+    except Exception as e:
+        logging.exception("Chat assistant error")
+        err_prefix = "An error occurred" if req.locale == "en" else "エラーが発生しました"
+        yield f"data: [ERROR] {err_prefix}: {str(e)}\n\n".encode()
+
+
+@app.post("/api/chat")
+async def chat_assistant(req: ChatRequest):
+    """AI chat assistant with Haiku routing + Sonnet streaming response."""
+    return StreamingResponse(
+        content=_chat_stream(req),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
